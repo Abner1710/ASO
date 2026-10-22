@@ -1,0 +1,185 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.geometry.Insets?>
+<?import javafx.scene.control.Button?>
+<?import javafx.scene.control.Label?>
+<?import javafx.scene.control.ListView?>
+<?import javafx.scene.control.TextArea?>
+<?import javafx.scene.control.ToggleButton?>
+<?import javafx.scene.layout.HBox?>
+<?import javafx.scene.layout.Region?>
+<?import javafx.scene.layout.VBox?>
+
+<VBox xmlns="http://javafx.com/javafx/17"
+      xmlns:fx="http://javafx.com/fxml/1"
+      fx:controller="ni.edu.uni.aso.ui.DashboardController"
+      id="mainContainer"
+      fx:id="mainContainer"
+      styleClass="root-pane"
+      stylesheets="@styles.css"
+      spacing="14.0"
+      prefWidth="1180.0"
+      prefHeight="840.0">
+    <padding>
+        <Insets top="18.0" right="20.0" bottom="18.0" left="20.0"/>
+    </padding>
+
+    <!-- ===================================================================== -->
+    <!-- ENCABEZADO SUPERIOR: MARCA INSTITUCIONAL Y ESTADO DEL KERNEL           -->
+    <!-- ===================================================================== -->
+    <HBox alignment="CENTER_LEFT" spacing="12.0" styleClass="app-header">
+        <VBox spacing="3.0">
+            <HBox alignment="CENTER_LEFT" spacing="8.0">
+                <Label text="UNI • ARQUITECTURA Y SISTEMAS OPERATIVOS" styleClass="header-badge"/>
+                <Label text="GRUPO NO. 14" styleClass="header-group-badge"/>
+            </HBox>
+            <Label text="Simulador del Subsistema de Entrada/Salida (I/O Kernel Subsystem)" styleClass="header-title"/>
+        </VBox>
+        <Region HBox.hgrow="ALWAYS"/>
+        <HBox alignment="CENTER" spacing="8.0" styleClass="kernel-status-pill">
+            <Region styleClass="pulse-dot"/>
+            <Label text="KERNEL ONLINE" styleClass="kernel-status-text"/>
+            <Label text="| Reloj: 1.5s" styleClass="kernel-status-clock"/>
+        </HBox>
+    </HBox>
+
+    <!-- ===================================================================== -->
+    <!-- PANEL DE MÉTRICAS GLOBALES (KPI CARDS EN TIEMPO REAL)                  -->
+    <!-- ===================================================================== -->
+    <HBox spacing="14.0" styleClass="kpi-container">
+        <!-- KPI 1: Peticiones Totales -->
+        <HBox HBox.hgrow="ALWAYS" styleClass="kpi-card" alignment="CENTER_LEFT" spacing="12.0">
+            <VBox styleClass="kpi-icon-box, kpi-icon-blue" alignment="CENTER" fx:id="boxKpi1"/>
+            <VBox spacing="2.0">
+                <Label text="PETICIONES EMITIDAS" styleClass="kpi-subtitle"/>
+                <Label fx:id="lblTotalRequests" text="0" styleClass="kpi-value"/>
+            </VBox>
+        </HBox>
+
+        <!-- KPI 2: En Cola de Espera -->
+        <HBox HBox.hgrow="ALWAYS" styleClass="kpi-card" alignment="CENTER_LEFT" spacing="12.0">
+            <VBox styleClass="kpi-icon-box, kpi-icon-amber" alignment="CENTER" fx:id="boxKpi2"/>
+            <VBox spacing="2.0">
+                <Label text="EN COLA FIFO" styleClass="kpi-subtitle"/>
+                <Label fx:id="lblQueueCount" text="0" styleClass="kpi-value"/>
+            </VBox>
+        </HBox>
+
+        <!-- KPI 3: Dispositivos Activos -->
+        <HBox HBox.hgrow="ALWAYS" styleClass="kpi-card" alignment="CENTER_LEFT" spacing="12.0">
+            <VBox styleClass="kpi-icon-box, kpi-icon-emerald" alignment="CENTER" fx:id="boxKpi3"/>
+            <VBox spacing="2.0">
+                <Label text="DISPOSITIVOS ACTIVOS" styleClass="kpi-subtitle"/>
+                <Label fx:id="lblActiveDevices" text="0 / 4" styleClass="kpi-value"/>
+            </VBox>
+        </HBox>
+
+        <!-- KPI 4: Stress Test -->
+        <HBox HBox.hgrow="ALWAYS" styleClass="kpi-card" alignment="CENTER_LEFT" spacing="12.0">
+            <VBox styleClass="kpi-icon-box, kpi-icon-purple" alignment="CENTER" fx:id="boxKpi4"/>
+            <VBox spacing="2.0">
+                <Label text="STRESS TEST" styleClass="kpi-subtitle"/>
+                <Label fx:id="lblStressStatus" text="INACTIVO" styleClass="kpi-value, kpi-status-off"/>
+            </VBox>
+        </HBox>
+    </HBox>
+
+    <!-- ===================================================================== -->
+    <!-- FILA PRINCIPAL: 3 COLUMNAS DEL SUBSISTEMA                            -->
+    <!-- ===================================================================== -->
+    <HBox VBox.vgrow="ALWAYS" spacing="16.0">
+        <!-- Columna 1: Generador de Procesos / Syscalls -->
+        <VBox prefWidth="320.0" maxWidth="360.0" styleClass="column-card" spacing="14.0">
+            <HBox alignment="CENTER_LEFT" spacing="8.0" styleClass="column-header">
+                <Label text="Generador de Procesos" styleClass="column-title"/>
+                <Region HBox.hgrow="ALWAYS"/>
+                <Label text="SYSCALLS" styleClass="section-tag"/>
+            </HBox>
+
+            <VBox spacing="12.0" VBox.vgrow="ALWAYS" alignment="TOP_CENTER">
+                <!-- Botón Lectura -->
+                <Button fx:id="btnReadRequest"
+                        text="Generar Petición (Lectura)"
+                        maxWidth="Infinity"
+                        prefHeight="54.0"
+                        styleClass="btn-action, btn-read"/>
+
+                <!-- Botón Escritura -->
+                <Button fx:id="btnWriteRequest"
+                        text="Generar Petición (Escritura)"
+                        maxWidth="Infinity"
+                        prefHeight="54.0"
+                        styleClass="btn-action, btn-write"/>
+
+                <!-- Separador visual -->
+                <Region prefHeight="8.0"/>
+
+                <!-- Toggle Stress Test -->
+                <ToggleButton fx:id="btnStressTest"
+                              id="btnStressTest"
+                              text="Activar Stress Test (Auto)"
+                              maxWidth="Infinity"
+                              prefHeight="50.0"
+                              styleClass="btn-stress"/>
+
+                <!-- Información informativa sobre los Syscalls -->
+                <VBox styleClass="info-box" spacing="6.0" VBox.vgrow="ALWAYS" alignment="CENTER_LEFT">
+                    <Label text="• Interrupciones (IRQ) dirigidas por hardware." styleClass="info-text"/>
+                    <Label text="• Planificación equitativa FIFO / FCFS." styleClass="info-text"/>
+                    <Label text="• Buffer por ráfaga: +8 bytes / ciclo." styleClass="info-text"/>
+                </VBox>
+            </VBox>
+        </VBox>
+
+        <!-- Columna 2: Gestor de Colas (FIFO Wait Queue) -->
+        <VBox HBox.hgrow="ALWAYS" styleClass="column-card" spacing="14.0">
+            <HBox alignment="CENTER_LEFT" spacing="8.0" styleClass="column-header">
+                <Label text="Gestor de Colas" styleClass="column-title"/>
+                <Region HBox.hgrow="ALWAYS"/>
+                <Label text="FIFO WAIT QUEUE" styleClass="section-tag"/>
+            </HBox>
+
+            <ListView fx:id="queueListView"
+                      VBox.vgrow="ALWAYS"
+                      styleClass="custom-list-view"/>
+        </VBox>
+
+        <!-- Columna 3: Controladores de Hardware (Periféricos) -->
+        <VBox HBox.hgrow="ALWAYS" styleClass="column-card" spacing="14.0">
+            <HBox alignment="CENTER_LEFT" spacing="8.0" styleClass="column-header">
+                <Label text="Controladores Hardware" styleClass="column-title"/>
+                <Region HBox.hgrow="ALWAYS"/>
+                <Label text="PERIFÉRICOS" styleClass="section-tag"/>
+            </HBox>
+
+            <VBox fx:id="devicesContainer"
+                  VBox.vgrow="ALWAYS"
+                  spacing="10.0"
+                  styleClass="devices-container"/>
+        </VBox>
+    </HBox>
+
+    <!-- ===================================================================== -->
+    <!-- FILA INFERIOR: CONSOLA DE TELEMETRÍA (DEVTOOLS / CYBERPUNK TERMINAL)   -->
+    <!-- ===================================================================== -->
+    <VBox styleClass="terminal-card" spacing="0">
+        <!-- Barra de herramientas de la terminal -->
+        <HBox alignment="CENTER_LEFT" spacing="10.0" styleClass="terminal-header">
+            <HBox spacing="6.0" alignment="CENTER_LEFT">
+                <Region styleClass="window-dot, dot-red"/>
+                <Region styleClass="window-dot, dot-yellow"/>
+                <Region styleClass="window-dot, dot-green"/>
+            </HBox>
+            <Label text="CONSOLE // Telemetría del Kernel &amp; Registros de Interrupciones (ISR)" styleClass="terminal-title"/>
+            <Region HBox.hgrow="ALWAYS"/>
+            <Button fx:id="btnClearLogs" text="Limpiar Consola" styleClass="btn-terminal-action"/>
+        </HBox>
+
+        <!-- Área de texto del log -->
+        <TextArea fx:id="logConsole"
+                  id="logConsole"
+                  editable="false"
+                  prefHeight="140.0"
+                  wrapText="true"/>
+    </VBox>
+</VBox>
