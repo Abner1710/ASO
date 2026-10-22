@@ -453,3 +453,97 @@
     -fx-background-color: transparent;
     -fx-padding: 0;
 }
+
+/* --------------------------------------------------------------------------
+   11. Estilos para Hardware Físico y Plug & Play
+   -------------------------------------------------------------------------- */
+.header-pnp-badge {
+    -fx-background-color: rgba(16, 185, 129, 0.15);
+    -fx-text-fill: #10b981;
+    -fx-font-size: 11px;
+    -fx-font-weight: bold;
+    -fx-padding: 3px 8px;
+    -fx-background-radius: 6px;
+    -fx-border-color: rgba(16, 185, 129, 0.3);
+    -fx-border-radius: 6px;
+    -fx-border-width: 1px;
+}
+
+.tag-pnp {
+    -fx-background-color: rgba(16, 185, 129, 0.2);
+    -fx-text-fill: #34d399;
+    -fx-border-color: #10b981;
+}
+
+.field-label {
+    -fx-text-fill: #94a3b8;
+    -fx-font-size: 11px;
+    -fx-font-weight: bold;
+}
+
+.custom-combobox {
+    -fx-background-color: #1a243b;
+    -fx-border-color: #2e3f66;
+    -fx-border-radius: 8px;
+    -fx-background-radius: 8px;
+    -fx-border-width: 1px;
+    -fx-font-size: 12px;
+    -fx-padding: 3px 8px;
+}
+
+.custom-combobox .list-cell {
+    -fx-background-color: #1a243b;
+    -fx-text-fill: #ffffff;
+}
+
+.custom-combobox .list-cell:hover {
+    -fx-background-color: #2b3a5e;
+}
+
+.custom-combobox .arrow-button {
+    -fx-background-color: transparent;
+}
+
+.custom-combobox .arrow {
+    -fx-background-color: #94a3b8;
+}
+
+.btn-rescan {
+    -fx-background-color: #162035;
+    -fx-text-fill: #34d399;
+    -fx-border-color: #10b981;
+    -fx-border-radius: 8px;
+    -fx-background-radius: 8px;
+    -fx-border-width: 1px;
+    -fx-font-size: 12px;
+    -fx-font-weight: bold;
+    -fx-cursor: hand;
+    -fx-padding: 8px 14px;
+    -fx-graphic-text-gap: 8px;
+}
+
+.btn-rescan:hover {
+    -fx-background-color: #1b2e4b;
+    -fx-effect: dropshadow(gaussian, rgba(16, 185, 129, 0.35), 8, 0, 0, 2);
+}
+
+.live-irq-box {
+    -fx-background-color: #0d1424;
+    -fx-background-radius: 10px;
+    -fx-border-color: #1e293b;
+    -fx-border-radius: 10px;
+    -fx-border-width: 1px;
+    -fx-padding: 10px 12px;
+}
+
+.live-irq-title {
+    -fx-text-fill: #f59e0b;
+    -fx-font-size: 11px;
+    -fx-font-weight: bold;
+}
+
+.info-text-highlight {
+    -fx-text-fill: #34d399;
+    -fx-font-size: 11px;
+    -fx-font-weight: bold;
+}

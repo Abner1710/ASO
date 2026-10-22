@@ -7,6 +7,7 @@ import javafx.fxml.FXML;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.control.Button;
+import javafx.scene.control.ComboBox;
 import javafx.scene.control.Label;
 import javafx.scene.control.ListCell;
 import javafx.scene.control.ListView;
@@ -20,6 +21,7 @@ import javafx.scene.layout.VBox;
 import javafx.scene.shape.SVGPath;
 import javafx.util.Duration;
 import ni.edu.uni.aso.core.DeviceStatus;
+import ni.edu.uni.aso.core.HardwareWatcher;
 import ni.edu.uni.aso.core.IODevice;
 import ni.edu.uni.aso.core.IORequest;
 import ni.edu.uni.aso.core.IOSubsystem;
@@ -32,15 +34,21 @@ import java.util.Random;
 
 /**
  * Controlador principal del Dashboard de Simulación de Entrada/Salida.
- * Diseñado con estética futurista de alta fidelidad, micro-animaciones e iconos vectoriales SVG.
+ * Integra detección en tiempo real de Hardware Físico (Plug & Play de USBs, monitores, teclado y mouse físicos)
+ * y operaciones reales de E/S en disco mediante la llamada fsync().
  */
 public class DashboardController {
+
+    // Contenedor principal
+    @FXML private VBox mainContainer;
 
     // Controles FXML - Botones y Formularios
     @FXML private Button btnReadRequest;
     @FXML private Button btnWriteRequest;
     @FXML private ToggleButton btnStressTest;
     @FXML private Button btnClearLogs;
+    @FXML private Button btnRescanHardware;
+    @FXML private ComboBox<String> cmbTargetDevice;
 
     // Controles FXML - KPIs Superiores
     @FXML private Label lblTotalRequests;
@@ -63,12 +71,15 @@ public class DashboardController {
     private int requestCounter = 1;
     private int totalRequestsGenerated = 0;
     private Timeline stressTimeline;
+    private HardwareWatcher hardwareWatcher;
     private final Map<String, DeviceStatus> lastKnownDeviceStatus = new HashMap<>();
 
     @FXML
     public void initialize() {
         setupIcons();
         setupQueueListView();
+        setupHardwareWatcher();
+        updateTargetDeviceCombo();
 
         // Enlazar eventos de botones manuales
         if (btnReadRequest != null) {
@@ -82,6 +93,32 @@ public class DashboardController {
                 if (logConsole != null) {
                     logConsole.clear();
                     logConsole.appendText("[Sistema] Consola de telemetría reiniciada por el operador.\n");
+                }
+            });
+        }
+        if (btnRescanHardware != null) {
+            btnRescanHardware.setOnAction(e -> {
+                if (hardwareWatcher != null) {
+                    hardwareWatcher.scan();
+                    subsystem.log("[Manual PnP] Escaneo forzado de bus de hardware ejecutado.");
+                    updateTargetDeviceCombo();
+                    updateUI();
+                }
+            });
+        }
+
+        // Listener de teclas físicas y clicks en la escena para demostrar interrupciones en tiempo real (IRQ 1 & 12)
+        if (mainContainer != null) {
+            mainContainer.sceneProperty().addListener((obs, oldScene, newScene) -> {
+                if (newScene != null) {
+                    newScene.setOnKeyPressed(event -> {
+                        subsystem.handleKeyboardInterrupt(event.getText(), event.getCode().toString());
+                        updateUI();
+                    });
+                    newScene.setOnMouseClicked(event -> {
+                        subsystem.handleMouseInterrupt(event.getButton().toString(), event.getX(), event.getY());
+                        updateUI();
+                    });
                 }
             });
         }
@@ -132,6 +169,66 @@ public class DashboardController {
     }
 
     /**
+     * Inicializa el servicio de vigilancia de hardware Plug & Play.
+     */
+    private void setupHardwareWatcher() {
+        hardwareWatcher = new HardwareWatcher(new HardwareWatcher.HardwareListener() {
+            @Override
+            public void onDriveConnected(IODevice device) {
+                subsystem.addDynamicDevice(device);
+                updateTargetDeviceCombo();
+                updateUI();
+            }
+
+            @Override
+            public void onDriveDisconnected(String deviceId, String drivePath) {
+                subsystem.removeDynamicDevice(deviceId, drivePath);
+                updateTargetDeviceCombo();
+                updateUI();
+            }
+
+            @Override
+            public void onScreenChanged(int totalScreens, String details) {
+                IODevice mon = subsystem.findDeviceById("dev-4");
+                if (mon != null) {
+                    mon.setExtraInfo(details);
+                }
+                subsystem.log("[Hardware PnP] Cambio en monitores detectado: " + details);
+                updateUI();
+            }
+        });
+
+        // Hilo/Timeline de sondeo de hardware en caliente cada 1000 ms
+        Timeline pnpWatcherTimeline = new Timeline(new KeyFrame(Duration.millis(1000), e -> {
+            if (hardwareWatcher != null) {
+                hardwareWatcher.scan();
+            }
+        }));
+        pnpWatcherTimeline.setCycleCount(Timeline.INDEFINITE);
+        pnpWatcherTimeline.play();
+    }
+
+    /**
+     * Actualiza el listado desplegable de dispositivos objetivo para permitir pruebas dirigidas (ej. escribir en la USB).
+     */
+    private void updateTargetDeviceCombo() {
+        if (cmbTargetDevice == null) return;
+        String currentSelection = cmbTargetDevice.getValue();
+
+        cmbTargetDevice.getItems().clear();
+        cmbTargetDevice.getItems().add("[Automático / Cualquier Dispositivo]");
+        for (IODevice dev : subsystem.getDevices()) {
+            cmbTargetDevice.getItems().add(dev.getName() + " (" + dev.getId() + ")");
+        }
+
+        if (currentSelection != null && cmbTargetDevice.getItems().contains(currentSelection)) {
+            cmbTargetDevice.setValue(currentSelection);
+        } else {
+            cmbTargetDevice.getSelectionModel().selectFirst();
+        }
+    }
+
+    /**
      * Inyecta iconos vectoriales SVG en los botones, KPI cards y componentes visuales.
      */
     private void setupIcons() {
@@ -146,6 +243,10 @@ public class DashboardController {
         if (btnStressTest != null) {
             SVGPath icon = IconHelper.createIcon(IconHelper.ICON_ZAP, "#fbbf24", 1.05);
             btnStressTest.setGraphic(icon);
+        }
+        if (btnRescanHardware != null) {
+            SVGPath icon = IconHelper.createIcon(IconHelper.ICON_USB, "#34d399", 0.95);
+            btnRescanHardware.setGraphic(icon);
         }
         if (btnClearLogs != null) {
             SVGPath icon = IconHelper.createIcon(IconHelper.ICON_TRASH, "#94a3b8", 0.9);
@@ -175,16 +276,14 @@ public class DashboardController {
             return;
         }
 
-        // Estado vacío de la cola
         VBox emptyPlaceholder = new VBox(8);
         emptyPlaceholder.setAlignment(Pos.CENTER);
         SVGPath emptyIcon = IconHelper.createIcon(IconHelper.ICON_QUEUE, "#475569", 1.4);
-        Label emptyLabel = new Label("Cola FIFO vacía\nEsperando nuevas peticiones del kernel...");
+        Label emptyLabel = new Label("Cola FIFO vacía\nListo para recibir peticiones o eventos de hardware...");
         emptyLabel.setStyle("-fx-text-fill: #64748b; -fx-font-size: 12px; -fx-text-alignment: center;");
         emptyPlaceholder.getChildren().addAll(emptyIcon, emptyLabel);
         queueListView.setPlaceholder(emptyPlaceholder);
 
-        // Fábrica de celdas gráficas personalizadas
         queueListView.setCellFactory(listView -> new ListCell<>() {
             @Override
             protected void updateItem(IORequest req, boolean empty) {
@@ -212,11 +311,9 @@ public class DashboardController {
         card.getStyleClass().add("queue-card");
 
         boolean isRead = req.getOperationType() == OperationType.LECTURA;
-        String badgeColor = isRead ? "#0284c7" : "#7c3aed";
         String badgeTextColor = isRead ? "#38bdf8" : "#c084fc";
         String iconPath = isRead ? IconHelper.ICON_READ : IconHelper.ICON_WRITE;
 
-        // Badge de Operación con Icono
         HBox badgeBox = new HBox(5);
         badgeBox.setAlignment(Pos.CENTER);
         badgeBox.setPadding(new Insets(4, 8, 4, 8));
@@ -229,22 +326,20 @@ public class DashboardController {
         badgeLabel.setStyle(String.format("-fx-text-fill: %s; -fx-font-weight: bold; -fx-font-size: 11px;", badgeTextColor));
         badgeBox.getChildren().addAll(badgeIcon, badgeLabel);
 
-        // Información de la Petición
         VBox infoBox = new VBox(2);
         Label idLabel = new Label(req.getId());
         idLabel.setStyle("-fx-text-fill: #ffffff; -fx-font-weight: bold; -fx-font-size: 13px;");
 
         IODevice targetDevice = subsystem.findDeviceById(req.getTargetDeviceId());
         String targetName = targetDevice != null ? targetDevice.getName() : req.getTargetDeviceId();
-        Label targetLabel = new Label("Destino: " + targetName + " (" + req.getTargetDeviceId() + ")");
+        Label targetLabel = new Label("Destino: " + targetName);
         targetLabel.setStyle("-fx-text-fill: #94a3b8; -fx-font-size: 11px;");
         infoBox.getChildren().addAll(idLabel, targetLabel);
 
         Region spacer = new Region();
         HBox.setHgrow(spacer, Priority.ALWAYS);
 
-        // Badge de Payload
-        Label payloadBadge = new Label(req.getPayloadSize() + " B");
+        Label payloadBadge = new Label(req.getPayloadSize() + " KB");
         payloadBadge.setStyle("-fx-background-color: #334155; -fx-text-fill: #f1f5f9; -fx-font-size: 11px; " +
                 "-fx-font-weight: bold; -fx-background-radius: 6px; -fx-padding: 3px 8px;");
 
@@ -253,7 +348,7 @@ public class DashboardController {
     }
 
     /**
-     * Genera una petición de E/S aleatoria y actualiza el conteo global.
+     * Genera una petición de E/S considerando la selección del usuario o distribución equilibrada.
      */
     private void handleGenerateRequest(OperationType type) {
         List<IODevice> devices = subsystem.getDevices();
@@ -261,7 +356,24 @@ public class DashboardController {
             return;
         }
 
-        IODevice target = devices.get(random.nextInt(devices.size()));
+        IODevice target = null;
+        if (cmbTargetDevice != null && cmbTargetDevice.getValue() != null) {
+            String selected = cmbTargetDevice.getValue();
+            if (!selected.startsWith("[Auto")) {
+                for (IODevice d : devices) {
+                    if (selected.contains("(" + d.getId() + ")")) {
+                        target = d;
+                        break;
+                    }
+                }
+            }
+        }
+
+        // Si es automático, priorizar dispositivos de almacenamiento físico o aleatorio
+        if (target == null) {
+            target = devices.get(random.nextInt(devices.size()));
+        }
+
         int payload = 30 + random.nextInt(50);
         String reqId = String.format("REQ-%03d", requestCounter++);
         totalRequestsGenerated++;
@@ -283,10 +395,9 @@ public class DashboardController {
             lblQueueCount.setText(String.valueOf(subsystem.getRequestQueue().size()));
         }
         if (lblActiveDevices != null) {
-            long activeCount = subsystem.getDevices().stream()
-                    .filter(d -> d.getStatus() != DeviceStatus.LIBRE)
-                    .count();
-            lblActiveDevices.setText(activeCount + " / " + subsystem.getDevices().size());
+            int total = subsystem.getDevices().size();
+            long physicalCount = subsystem.getDevices().stream().filter(IODevice::isPhysical).count();
+            lblActiveDevices.setText(total + " (" + physicalCount + " Físicos)");
         }
 
         // 2. Actualizar Gestor de Colas
@@ -320,11 +431,11 @@ public class DashboardController {
     }
 
     /**
-     * Construye una tarjeta gráfica futurista para un controlador de hardware con icono SVG.
+     * Construye una tarjeta gráfica futurista para un controlador de hardware con soporte físico y PnP.
      */
     private VBox createDeviceCard(IODevice device) {
-        VBox card = new VBox(8);
-        card.setPadding(new Insets(12, 14, 12, 14));
+        VBox card = new VBox(7);
+        card.setPadding(new Insets(10, 14, 10, 14));
         card.getStyleClass().add("device-card");
 
         String borderColor;
@@ -356,11 +467,10 @@ public class DashboardController {
             card.getStyleClass().add("device-free");
         }
 
-        // Encabezado con Icono de Hardware y Nombre
+        // Encabezado con Icono de Hardware, Nombre y Badges
         HBox header = new HBox(10);
         header.setAlignment(Pos.CENTER_LEFT);
 
-        // Contenedor de Icono SVG específico para el periférico
         HBox iconBox = new HBox();
         iconBox.setAlignment(Pos.CENTER);
         iconBox.setPrefSize(32, 32);
@@ -368,17 +478,31 @@ public class DashboardController {
                 "-fx-background-color: %s; -fx-background-radius: 8px;",
                 badgeBg));
 
-        String svgPath = IconHelper.getDeviceIconPath(device.getName());
+        String svgPath = IconHelper.getDeviceIconPath(device.getName() + " " + device.getType());
         SVGPath deviceIcon = IconHelper.createIcon(svgPath, iconColor, 0.95);
         iconBox.getChildren().add(deviceIcon);
 
         VBox titleBox = new VBox(1);
+        HBox nameRow = new HBox(6);
+        nameRow.setAlignment(Pos.CENTER_LEFT);
         Label nameLabel = new Label(device.getName());
         nameLabel.setStyle("-fx-text-fill: #ffffff; -fx-font-weight: bold; -fx-font-size: 13px;");
 
-        Label idLabel = new Label("ID: " + device.getId() + " • " + device.getType());
+        // Badge de Hardware Físico o PnP
+        Label hwTypeBadge = new Label(device.isRemovable() ? "⚡ USB PnP" : (device.isPhysical() ? "HARDWARE REAL" : "VIRTUAL"));
+        hwTypeBadge.setStyle(String.format(
+                "-fx-background-color: %s; -fx-text-fill: %s; -fx-font-size: 9px; -fx-font-weight: bold; " +
+                "-fx-padding: 2px 5px; -fx-background-radius: 4px;",
+                device.isRemovable() ? "rgba(16, 185, 129, 0.2)" : "rgba(56, 189, 248, 0.2)",
+                device.isRemovable() ? "#6ee7b7" : "#38bdf8"));
+        nameRow.getChildren().addAll(nameLabel, hwTypeBadge);
+
+        String subInfo = device.getExtraInfo() != null && !device.getExtraInfo().isEmpty()
+                ? device.getExtraInfo()
+                : "ID: " + device.getId() + " • " + device.getType();
+        Label idLabel = new Label(subInfo);
         idLabel.setStyle("-fx-text-fill: #64748b; -fx-font-size: 10px;");
-        titleBox.getChildren().addAll(nameLabel, idLabel);
+        titleBox.getChildren().addAll(nameRow, idLabel);
 
         Region spacer = new Region();
         HBox.setHgrow(spacer, Priority.ALWAYS);
@@ -394,24 +518,26 @@ public class DashboardController {
 
         // Barra de progreso y cálculo de transferencia
         double progress = 0.0;
-        String infoText = "Sin petición activa • Buffer: 0 / " + device.getBufferSize() + " B";
+        String infoText = "Sin petición activa";
         int percent = 0;
 
         if (device.getCurrentRequest() != null) {
             int target = device.getCurrentRequest().getPayloadSize();
             progress = Math.min(1.0, (double) device.getCurrentBuffer() / target);
             percent = (int) Math.round(progress * 100);
-            infoText = String.format("Req: %s [%s] • %d / %d B (%d%%)",
+            infoText = String.format("Req: %s [%s] • %d / %d KB",
                     device.getCurrentRequest().getId(),
                     device.getCurrentRequest().getOperationType(),
                     device.getCurrentBuffer(),
-                    target,
-                    percent);
+                    target);
+        } else if (device.getLastLatencyMs() > 0) {
+            infoText = String.format("Última E/S física fsync: %.2f ms (%.1f MB/s)",
+                    device.getLastLatencyMs(), device.getLastThroughputMBs());
         }
 
         ProgressBar progressBar = new ProgressBar(progress);
         progressBar.setMaxWidth(Double.MAX_VALUE);
-        progressBar.setPrefHeight(9);
+        progressBar.setPrefHeight(8);
         progressBar.setStyle(String.format("-fx-accent: %s;", borderColor));
 
         HBox footer = new HBox();
@@ -422,7 +548,7 @@ public class DashboardController {
         Region footerSpacer = new Region();
         HBox.setHgrow(footerSpacer, Priority.ALWAYS);
 
-        Label percentBadge = new Label(percent + "%");
+        Label percentBadge = new Label(percent > 0 ? percent + "%" : "");
         percentBadge.setStyle(String.format("-fx-text-fill: %s; -fx-font-weight: bold; -fx-font-size: 11px;", iconColor));
 
         footer.getChildren().addAll(infoLabel, footerSpacer, percentBadge);

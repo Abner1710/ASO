@@ -27,6 +27,9 @@ El simulador reproduce de manera determinista y didáctica el desacoplamiento te
 ## ✨ Características Principales
 
 * 🖥️ **Interfaz Gráfica Reactiva y Futurista:** Estilo Cyberpunk Dark con paleta Slate/Neón, bordes con efecto *glow*, micro-animaciones en transiciones y renderizado acelerado por hardware (*Prism*).
+* 🔌 **Detección Plug & Play en Caliente (Hardware Watcher):** Escaneo en tiempo real de periféricos físicos del host. Detecta instantáneamente memorias USB conectadas a cualquier puerto, calcula espacio libre/total y adapta la interfaz dinámicamente; si se desconectan, libera los recursos de E/S.
+* 💾 **Operaciones de E/S Física Real con fsync():** En lugar de solo simular números, el sistema puede escribir y leer bloques binarios reales en el disco local (`C:\`) o en la memoria USB conectada, forzando la sincronización de bloques físicos con la primitiva `fsync()`, midiendo latencia real de la controladora en milisegundos y tasa de transferencia en MB/s.
+* ⌨️ **Interrupciones x86 en Vivo (IRQ 1 & IRQ 12):** Captura de pulsaciones físicas del teclado del operador (IRQ 1) y clicks del ratón (IRQ 12) en tiempo real con visualización inmediata en las tarjetas de hardware.
 * 🎨 **Iconos Vectoriales SVG Nativos:** Integración de trazados SVG de alta fidelidad sin dependencias externas pesadas (`IconHelper.java`), escalables y nítidos en monitores Full HD y 4K.
 * 📊 **Panel Superior de Telemetría (KPIs en Tiempo Real):** Monitoreo en vivo de:
   * Peticiones totales emitidas.
@@ -58,7 +61,8 @@ El simulador reproduce de manera determinista y didáctica el desacoplamiento te
 │       │       ├── App.java                  # Punto de entrada de la aplicación JavaFX
 │       │       ├── core/                     # Capa del Dominio del Kernel (Lógica pura de SO)
 │       │       │   ├── DeviceStatus.java     # Estados del periférico (LIBRE, OCUPADO, INTERRUMPIDO)
-│       │       │   ├── IODevice.java         # Modelo de controlador y búfer de dispositivo
+│       │       │   ├── HardwareWatcher.java  # Servicio de monitoreo Plug & Play (Detección en caliente)
+│       │       │   ├── IODevice.java         # Modelo de controlador y búfer con soporte fsync() físico
 │       │       │   ├── IORequest.java        # Modelo de paquete de petición de E/S
 │       │       │   ├── IOSubsystem.java      # Planificador central, colas y motor de reloj
 │       │       │   └── OperationType.java    # Enumeración de operaciones (LECTURA, ESCRITURA)
@@ -79,6 +83,7 @@ El simulador reproduce de manera determinista y didáctica el desacoplamiento te
 | :--- | :--- | :--- |
 | `read(fd, buf, count)` | Solicita lectura de bloques hacia el espacio de usuario. | `handleGenerateRequest(OperationType.LECTURA)` |
 | `write(fd, buf, count)` | Escribe un flujo de datos hacia un dispositivo. | `handleGenerateRequest(OperationType.ESCRITURA)` |
+| `fsync(fd)` | Fuerza el volcado físico del búfer del kernel al almacenamiento físico. | `device.executePhysicalIO()` mediante `fos.getFD().sync()` |
 | `sleep() / wait_event()` | Suspende el hilo colocándolo en estado *Bloqueado*. | Encolamiento de la petición en `requestQueue` hasta liberación. |
 | **Línea de Interrupción (IRQ)** | Señal eléctrica emitida por el controlador al bus de la CPU. | Transición a `DeviceStatus.INTERRUMPIDO` al alcanzar el *payload*. |
 | **Rutina ISR (*Top/Bottom Half*)** | Código del kernel que atiende la IRQ y limpia el búfer. | Ejecución de `device.resetInterrupt()` en el siguiente ciclo `tick()`. |
