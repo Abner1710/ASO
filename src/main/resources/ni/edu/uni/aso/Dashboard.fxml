@@ -46,6 +46,18 @@
     </HBox>
 
     <!-- ===================================================================== -->
+    <!-- BANNER DE NOTIFICACIÓN FLOTANTE ANIMADA (PLUG & PLAY TOAST)            -->
+    <!-- ===================================================================== -->
+    <HBox fx:id="detectionToast" visible="false" managed="false" alignment="CENTER_LEFT" spacing="14.0" styleClass="detection-toast">
+        <HBox fx:id="toastIconBox" alignment="CENTER" styleClass="toast-icon-box" prefWidth="42.0" prefHeight="42.0"/>
+        <VBox spacing="2.0" HBox.hgrow="ALWAYS">
+            <Label fx:id="lblToastTitle" text="¡NUEVO HARDWARE DETECTADO EN CALIENTE!" styleClass="toast-title"/>
+            <Label fx:id="lblToastDevice" text="Dispositivo USB Conectado" styleClass="toast-device"/>
+            <Label fx:id="lblToastDesc" text="Asignando controlador y búfer de E/S en tiempo real..." styleClass="toast-desc"/>
+        </VBox>
+    </HBox>
+
+    <!-- ===================================================================== -->
     <!-- PANEL DE MÉTRICAS GLOBALES (KPI CARDS EN TIEMPO REAL)                  -->
     <!-- ===================================================================== -->
     <HBox spacing="14.0" styleClass="kpi-container">
@@ -91,32 +103,33 @@
     <!-- ===================================================================== -->
     <HBox VBox.vgrow="ALWAYS" spacing="16.0">
         <!-- Columna 1: Generador de Procesos / Syscalls y Selector de Hardware -->
-        <VBox prefWidth="330.0" maxWidth="370.0" styleClass="column-card" spacing="12.0">
+        <VBox prefWidth="340.0" maxWidth="380.0" styleClass="column-card" spacing="12.0">
             <HBox alignment="CENTER_LEFT" spacing="8.0" styleClass="column-header">
-                <Label text="Generador de Procesos" styleClass="column-title"/>
+                <Label text="Operaciones de Hardware" styleClass="column-title"/>
                 <Region HBox.hgrow="ALWAYS"/>
-                <Label text="SYSCALLS REALES" styleClass="section-tag"/>
+                <Label text="E/S REAL" styleClass="section-tag"/>
             </HBox>
 
-            <VBox spacing="10.0" VBox.vgrow="ALWAYS" alignment="TOP_CENTER">
+            <VBox spacing="9.0" VBox.vgrow="ALWAYS" alignment="TOP_CENTER">
                 <!-- Selector de dispositivo objetivo -->
-                <VBox spacing="4.0" maxWidth="Infinity">
+                <VBox spacing="3.0" maxWidth="Infinity">
                     <Label text="Dispositivo Destino de E/S:" styleClass="field-label"/>
                     <ComboBox fx:id="cmbTargetDevice" maxWidth="Infinity" styleClass="custom-combobox"/>
+                    <Label fx:id="lblDeviceContextDesc" text="Disco: Lectura de archivos y volcado con fsync()" wrapText="true" styleClass="field-desc"/>
                 </VBox>
 
-                <!-- Botón Lectura Física -->
+                <!-- Botón Lectura Contextualizada -->
                 <Button fx:id="btnReadRequest"
                         text="Generar Petición (Lectura)"
                         maxWidth="Infinity"
-                        prefHeight="48.0"
+                        prefHeight="46.0"
                         styleClass="btn-action, btn-read"/>
 
-                <!-- Botón Escritura Física -->
+                <!-- Botón Escritura Contextualizada -->
                 <Button fx:id="btnWriteRequest"
                         text="Generar Petición (Escritura fsync)"
                         maxWidth="Infinity"
-                        prefHeight="48.0"
+                        prefHeight="46.0"
                         styleClass="btn-action, btn-write"/>
 
                 <!-- Toggle Stress Test -->
@@ -124,22 +137,31 @@
                               id="btnStressTest"
                               text="Activar Stress Test (Auto)"
                               maxWidth="Infinity"
-                              prefHeight="44.0"
+                              prefHeight="40.0"
                               styleClass="btn-stress"/>
 
-                <!-- Botón Escaneo Manual PnP -->
-                <Button fx:id="btnRescanHardware"
-                        text="Detectar Periféricos USB / Pantallas"
-                        maxWidth="Infinity"
-                        prefHeight="38.0"
-                        styleClass="btn-rescan"/>
+                <!-- Botones de Acción PnP -->
+                <HBox spacing="8.0" maxWidth="Infinity">
+                    <Button fx:id="btnRescanHardware"
+                            text="Escanear USB PnP"
+                            HBox.hgrow="ALWAYS"
+                            maxWidth="Infinity"
+                            prefHeight="36.0"
+                            styleClass="btn-rescan"/>
+                    <Button fx:id="btnSimulatePnp"
+                            text="Demo Conexión"
+                            HBox.hgrow="ALWAYS"
+                            maxWidth="Infinity"
+                            prefHeight="36.0"
+                            styleClass="btn-demo-pnp"/>
+                </HBox>
 
                 <!-- Tarjeta interactiva de Interrupciones en Vivo (IRQ 1 & 12) -->
                 <VBox styleClass="live-irq-box" spacing="4.0">
                     <Label text="⚡ Entrada en Tiempo Real (IRQ 1 &amp; 12):" styleClass="live-irq-title"/>
-                    <Label text="• Presiona cualquier tecla para generar IRQ 1 (Teclado)." styleClass="info-text"/>
+                    <Label text="• Presiona teclas físicas para generar IRQ 1 (Teclado)." styleClass="info-text"/>
                     <Label text="• Haz click en la ventana para generar IRQ 12 (Mouse)." styleClass="info-text"/>
-                    <Label text="• Conecta una USB física para Plug &amp; Play instantáneo." styleClass="info-text-highlight"/>
+                    <Label text="• Conecta una USB o celular para Plug &amp; Play automático." styleClass="info-text-highlight"/>
                 </VBox>
             </VBox>
         </VBox>

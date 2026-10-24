@@ -1,8 +1,11 @@
 package ni.edu.uni.aso.ui;
 
+import javafx.animation.FadeTransition;
 import javafx.animation.KeyFrame;
+import javafx.animation.PauseTransition;
 import javafx.animation.ScaleTransition;
 import javafx.animation.Timeline;
+import javafx.animation.TranslateTransition;
 import javafx.fxml.FXML;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
@@ -27,6 +30,7 @@ import ni.edu.uni.aso.core.IORequest;
 import ni.edu.uni.aso.core.IOSubsystem;
 import ni.edu.uni.aso.core.OperationType;
 
+import java.awt.Toolkit;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -34,13 +38,22 @@ import java.util.Random;
 
 /**
  * Controlador principal del Dashboard de Simulación de Entrada/Salida.
- * Integra detección en tiempo real de Hardware Físico (Plug & Play de USBs, monitores, teclado y mouse físicos)
- * y operaciones reales de E/S en disco mediante la llamada fsync().
+ * Integra:
+ * - Operaciones de E/S contextualizadas para Teclado (stdin/ioctl), Mouse (deltas/calibración), Disco (fsync) y USB.
+ * - Animaciones llamativas de detección Plug & Play en caliente (Toast Notification con audio chime y rebote elástico).
+ * - Escaneo de cualquier dispositivo USB externo conectado (Mouse, Teclado, Cooler con chip, Celular, Memoria).
  */
 public class DashboardController {
 
     // Contenedor principal
     @FXML private VBox mainContainer;
+
+    // Banner Toast Flotante de Detección
+    @FXML private HBox detectionToast;
+    @FXML private HBox toastIconBox;
+    @FXML private Label lblToastTitle;
+    @FXML private Label lblToastDevice;
+    @FXML private Label lblToastDesc;
 
     // Controles FXML - Botones y Formularios
     @FXML private Button btnReadRequest;
@@ -48,7 +61,9 @@ public class DashboardController {
     @FXML private ToggleButton btnStressTest;
     @FXML private Button btnClearLogs;
     @FXML private Button btnRescanHardware;
+    @FXML private Button btnSimulatePnp;
     @FXML private ComboBox<String> cmbTargetDevice;
+    @FXML private Label lblDeviceContextDesc;
 
     // Controles FXML - KPIs Superiores
     @FXML private Label lblTotalRequests;
@@ -70,6 +85,7 @@ public class DashboardController {
     private final Random random = new Random();
     private int requestCounter = 1;
     private int totalRequestsGenerated = 0;
+    private int demoDeviceIndex = 0;
     private Timeline stressTimeline;
     private HardwareWatcher hardwareWatcher;
     private final Map<String, DeviceStatus> lastKnownDeviceStatus = new HashMap<>();
@@ -80,6 +96,7 @@ public class DashboardController {
         setupQueueListView();
         setupHardwareWatcher();
         updateTargetDeviceCombo();
+        setupTargetDeviceListener();
 
         // Enlazar eventos de botones manuales
         if (btnReadRequest != null) {
@@ -100,14 +117,17 @@ public class DashboardController {
             btnRescanHardware.setOnAction(e -> {
                 if (hardwareWatcher != null) {
                     hardwareWatcher.scan();
-                    subsystem.log("[Manual PnP] Escaneo forzado de bus de hardware ejecutado.");
+                    subsystem.log("[Manual PnP] Escaneo forzado del bus de hardware USB ejecutado.");
                     updateTargetDeviceCombo();
                     updateUI();
                 }
             });
         }
+        if (btnSimulatePnp != null) {
+            btnSimulatePnp.setOnAction(e -> handleDemoPnpConnection());
+        }
 
-        // Listener de teclas físicas y clicks en la escena para demostrar interrupciones en tiempo real (IRQ 1 & 12)
+        // Listener de teclas físicas y clicks en la escena para interrupciones en tiempo real (IRQ 1 & 12)
         if (mainContainer != null) {
             mainContainer.sceneProperty().addListener((obs, oldScene, newScene) -> {
                 if (newScene != null) {
@@ -169,37 +189,153 @@ public class DashboardController {
     }
 
     /**
+     * Muestra la animación visual y sonora de detección de hardware (Toast Banner).
+     */
+    private void showDetectionToast(String title, String deviceName, String desc, boolean isConnected) {
+        if (detectionToast == null) return;
+
+        try {
+            Toolkit.getDefaultToolkit().beep();
+        } catch (Exception ignored) {}
+
+        lblToastTitle.setText(title);
+        lblToastDevice.setText(deviceName);
+        lblToastDesc.setText(desc);
+
+        detectionToast.getStyleClass().removeAll("toast-connected", "toast-disconnected");
+        detectionToast.getStyleClass().add(isConnected ? "toast-connected" : "toast-disconnected");
+
+        if (toastIconBox != null) {
+            String iconPath = isConnected ? IconHelper.ICON_USB : IconHelper.ICON_ALERT;
+            String iconColor = isConnected ? "#10b981" : "#ef4444";
+            toastIconBox.getChildren().setAll(IconHelper.createIcon(iconPath, iconColor, 1.2));
+        }
+
+        detectionToast.setVisible(true);
+        detectionToast.setManaged(true);
+        detectionToast.setOpacity(0.0);
+        detectionToast.setTranslateY(-15);
+
+        // Animación de entrada: deslizamiento hacia abajo + fade in
+        FadeTransition fadeIn = new FadeTransition(Duration.millis(350), detectionToast);
+        fadeIn.setFromValue(0.0);
+        fadeIn.setToValue(1.0);
+
+        TranslateTransition slideDown = new TranslateTransition(Duration.millis(350), detectionToast);
+        slideDown.setFromY(-15);
+        slideDown.setToY(0);
+
+        fadeIn.play();
+        slideDown.play();
+
+        // Pausa de 3.8 segundos y luego desvanecimiento
+        PauseTransition pause = new PauseTransition(Duration.millis(3800));
+        pause.setOnFinished(e -> {
+            FadeTransition fadeOut = new FadeTransition(Duration.millis(400), detectionToast);
+            fadeOut.setFromValue(1.0);
+            fadeOut.setToValue(0.0);
+            fadeOut.setOnFinished(ev -> {
+                detectionToast.setVisible(false);
+                detectionToast.setManaged(false);
+            });
+            fadeOut.play();
+        });
+        pause.play();
+    }
+
+    /**
+     * Configura el listener del ComboBox de destino para contextualizar los botones de lectura y escritura.
+     */
+    private void setupTargetDeviceListener() {
+        if (cmbTargetDevice == null) return;
+
+        cmbTargetDevice.valueProperty().addListener((obs, oldVal, newVal) -> {
+            if (newVal == null) return;
+            String lower = newVal.toLowerCase();
+
+            if (lower.contains("teclado")) {
+                if (lblDeviceContextDesc != null) {
+                    lblDeviceContextDesc.setText("Teclado: Lectura de pulsaciones (stdin/sys_read) y comandos ioctl para LEDs.");
+                }
+                if (btnReadRequest != null) btnReadRequest.setText("Leer Flujo Teclado (sys_read)");
+                if (btnWriteRequest != null) btnWriteRequest.setText("Comando de Control (ioctl LED)");
+            } else if (lower.contains("mouse") || lower.contains("ratón") || lower.contains("puntero")) {
+                if (lblDeviceContextDesc != null) {
+                    lblDeviceContextDesc.setText("Mouse: Lectura de deltas de movimiento/clicks (read /dev/input) y calibración.");
+                }
+                if (btnReadRequest != null) btnReadRequest.setText("Leer Paquete Movimiento (read)");
+                if (btnWriteRequest != null) btnWriteRequest.setText("Calibrar Frecuencia (ioctl)");
+            } else if (lower.contains("disco") || lower.contains("memoria") || lower.contains("c:")) {
+                if (lblDeviceContextDesc != null) {
+                    lblDeviceContextDesc.setText("Disco/USB: Lectura de sectores y volcado físico a celdas de memoria con fsync().");
+                }
+                if (btnReadRequest != null) btnReadRequest.setText("Leer Bloque de Disco (sys_read)");
+                if (btnWriteRequest != null) btnWriteRequest.setText("Escribir Bloque Físico (fsync)");
+            } else if (lower.contains("usb") || lower.contains("pnp")) {
+                if (lblDeviceContextDesc != null) {
+                    lblDeviceContextDesc.setText("USB: Transmisiones IN (descriptores de hardware) y OUT (tramas de control SETUP).");
+                }
+                if (btnReadRequest != null) btnReadRequest.setText("Leer Descriptor USB (Trans. IN)");
+                if (btnWriteRequest != null) btnWriteRequest.setText("Enviar Paquete SETUP (Trans. OUT)");
+            } else {
+                if (lblDeviceContextDesc != null) {
+                    lblDeviceContextDesc.setText("Automático: Selecciona cualquier dispositivo disponible en el bus del sistema.");
+                }
+                if (btnReadRequest != null) btnReadRequest.setText("Generar Petición (Lectura)");
+                if (btnWriteRequest != null) btnWriteRequest.setText("Generar Petición (Escritura fsync)");
+            }
+        });
+    }
+
+    /**
+     * Simula la conexión de un periférico de prueba para demostración en clase.
+     */
+    private void handleDemoPnpConnection() {
+        String[] demoNames = {
+                "Cooler Pad USB RGB (Hub Controller)",
+                "Mouse Óptico USB Gaming (HID)",
+                "Infinix Note 40 Pro (MTP USB)",
+                "Memoria USB Kingston DataTraveler 3.0"
+        };
+        String name = demoNames[demoDeviceIndex % demoNames.length];
+        demoDeviceIndex++;
+
+        String devId = "dev-demo-" + System.currentTimeMillis() % 1000;
+        IODevice demoDev = new IODevice(devId, name, "USB", 120, true, null, true);
+        demoDev.setExtraInfo("Conexión USB 3.0 • Tasa de transferencia: 480 Mbps");
+
+        subsystem.addDynamicDevice(demoDev);
+        showDetectionToast("¡NUEVO HARDWARE DETECTADO EN CALIENTE!", name, "Controlador USB asignado • Pipe de comunicación inicializado", true);
+        updateTargetDeviceCombo();
+        updateUI();
+    }
+
+    /**
      * Inicializa el servicio de vigilancia de hardware Plug & Play.
      */
     private void setupHardwareWatcher() {
         hardwareWatcher = new HardwareWatcher(new HardwareWatcher.HardwareListener() {
             @Override
-            public void onDriveConnected(IODevice device) {
+            public void onDeviceConnected(IODevice device) {
                 subsystem.addDynamicDevice(device);
+                showDetectionToast("¡NUEVO HARDWARE DETECTADO EN CALIENTE!", device.getName(),
+                        "Controlador PnP cargado con éxito • Descriptores de hardware asignados", true);
                 updateTargetDeviceCombo();
                 updateUI();
             }
 
             @Override
-            public void onDriveDisconnected(String deviceId, String drivePath) {
-                subsystem.removeDynamicDevice(deviceId, drivePath);
+            public void onDeviceDisconnected(String deviceId, String deviceName) {
+                subsystem.removeDynamicDevice(deviceId, deviceName);
+                showDetectionToast("HARDWARE DESCONECTADO", deviceName,
+                        "Periférico retirado en caliente • Liberando búferes y descriptores de E/S", false);
                 updateTargetDeviceCombo();
-                updateUI();
-            }
-
-            @Override
-            public void onScreenChanged(int totalScreens, String details) {
-                IODevice mon = subsystem.findDeviceById("dev-4");
-                if (mon != null) {
-                    mon.setExtraInfo(details);
-                }
-                subsystem.log("[Hardware PnP] Cambio en monitores detectado: " + details);
                 updateUI();
             }
         });
 
-        // Hilo/Timeline de sondeo de hardware en caliente cada 1000 ms
-        Timeline pnpWatcherTimeline = new Timeline(new KeyFrame(Duration.millis(1000), e -> {
+        // Hilo/Timeline de sondeo de hardware en caliente cada 1500 ms
+        Timeline pnpWatcherTimeline = new Timeline(new KeyFrame(Duration.millis(1500), e -> {
             if (hardwareWatcher != null) {
                 hardwareWatcher.scan();
             }
@@ -209,7 +345,7 @@ public class DashboardController {
     }
 
     /**
-     * Actualiza el listado desplegable de dispositivos objetivo para permitir pruebas dirigidas (ej. escribir en la USB).
+     * Actualiza el listado desplegable de dispositivos objetivo para permitir pruebas dirigidas.
      */
     private void updateTargetDeviceCombo() {
         if (cmbTargetDevice == null) return;
@@ -247,6 +383,10 @@ public class DashboardController {
         if (btnRescanHardware != null) {
             SVGPath icon = IconHelper.createIcon(IconHelper.ICON_USB, "#34d399", 0.95);
             btnRescanHardware.setGraphic(icon);
+        }
+        if (btnSimulatePnp != null) {
+            SVGPath icon = IconHelper.createIcon(IconHelper.ICON_CHECK, "#38bdf8", 0.95);
+            btnSimulatePnp.setGraphic(icon);
         }
         if (btnClearLogs != null) {
             SVGPath icon = IconHelper.createIcon(IconHelper.ICON_TRASH, "#94a3b8", 0.9);
@@ -369,7 +509,6 @@ public class DashboardController {
             }
         }
 
-        // Si es automático, priorizar dispositivos de almacenamiento físico o aleatorio
         if (target == null) {
             target = devices.get(random.nextInt(devices.size()));
         }
@@ -501,7 +640,7 @@ public class DashboardController {
                 ? device.getExtraInfo()
                 : "ID: " + device.getId() + " • " + device.getType();
         Label idLabel = new Label(subInfo);
-        idLabel.setStyle("-fx-text-fill: #64748b; -fx-font-size: 10px;");
+        idLabel.setStyle("-fx-text-fill: #94a3b8; -fx-font-size: 10px;");
         titleBox.getChildren().addAll(nameRow, idLabel);
 
         Region spacer = new Region();
@@ -531,8 +670,10 @@ public class DashboardController {
                     device.getCurrentBuffer(),
                     target);
         } else if (device.getLastLatencyMs() > 0) {
-            infoText = String.format("Última E/S física fsync: %.2f ms (%.1f MB/s)",
-                    device.getLastLatencyMs(), device.getLastThroughputMBs());
+            infoText = String.format("Última E/S física: %.2f ms", device.getLastLatencyMs());
+            if (device.getLastThroughputMBs() > 0) {
+                infoText += String.format(" (%.1f MB/s)", device.getLastThroughputMBs());
+            }
         }
 
         ProgressBar progressBar = new ProgressBar(progress);

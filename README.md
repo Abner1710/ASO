@@ -27,9 +27,12 @@ El simulador reproduce de manera determinista y didáctica el desacoplamiento te
 ## ✨ Características Principales
 
 * 🖥️ **Interfaz Gráfica Reactiva y Futurista:** Estilo Cyberpunk Dark con paleta Slate/Neón, bordes con efecto *glow*, micro-animaciones en transiciones y renderizado acelerado por hardware (*Prism*).
-* 🔌 **Detección Plug & Play en Caliente (Hardware Watcher):** Escaneo en tiempo real de periféricos físicos del host. Detecta instantáneamente memorias USB conectadas a cualquier puerto, calcula espacio libre/total y adapta la interfaz dinámicamente; si se desconectan, libera los recursos de E/S.
-* 💾 **Operaciones de E/S Física Real con fsync():** En lugar de solo simular números, el sistema puede escribir y leer bloques binarios reales en el disco local (`C:\`) o en la memoria USB conectada, forzando la sincronización de bloques físicos con la primitiva `fsync()`, midiendo latencia real de la controladora en milisegundos y tasa de transferencia en MB/s.
-* ⌨️ **Interrupciones x86 en Vivo (IRQ 1 & IRQ 12):** Captura de pulsaciones físicas del teclado del operador (IRQ 1) y clicks del ratón (IRQ 12) en tiempo real con visualización inmediata en las tarjetas de hardware.
+* 🔌 **Detección Plug & Play en Caliente (Hardware Watcher):** Escaneo en tiempo real de periféricos físicos del host. Detecta instantáneamente cualquier dispositivo USB conectado a la máquina (memorias USB, mouse/teclado externo, celular, gamepad) mediante la API PnP de Windows, mostrando una **animación de detección flotante (Toast Banner)** con alerta auditiva y adaptación dinámica de la interfaz.
+* 💾 **Operaciones de E/S Física Real Contextualizadas:** Las operaciones de lectura y escritura se adaptan a la naturaleza del periférico:
+  * **Disco / Memoria USB:** Lectura de sectores y volcado físico con sincronización `fsync()`, midiendo latencia real en milisegundos y tasa en MB/s.
+  * **Teclado Físico (IRQ 1):** Lectura de caracteres en buffer `stdin` (`sys_read`) y envío de comandos de control de LEDs (`ioctl`).
+  * **Mouse / Ratón (IRQ 12):** Captura de deltas de movimiento y clicks en tiempo real (`read /dev/input`) y calibración de muestreo.
+  * **Dispositivos USB:** Transmisión de paquetes IN (lectura de descriptores) y tramas SETUP OUT.
 * 🎨 **Iconos Vectoriales SVG Nativos:** Integración de trazados SVG de alta fidelidad sin dependencias externas pesadas (`IconHelper.java`), escalables y nítidos en monitores Full HD y 4K.
 * 📊 **Panel Superior de Telemetría (KPIs en Tiempo Real):** Monitoreo en vivo de:
   * Peticiones totales emitidas.

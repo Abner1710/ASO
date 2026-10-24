@@ -547,3 +547,84 @@
     -fx-font-size: 11px;
     -fx-font-weight: bold;
 }
+
+/* --------------------------------------------------------------------------
+   12. Banner Flotante de Detección Plug & Play (Toast Animation)
+   -------------------------------------------------------------------------- */
+.detection-toast {
+    -fx-background-color: #0f192d;
+    -fx-background-radius: 12px;
+    -fx-border-radius: 12px;
+    -fx-border-width: 1.5px;
+    -fx-padding: 10px 16px;
+}
+
+.toast-connected {
+    -fx-border-color: #10b981;
+    -fx-effect: dropshadow(gaussian, rgba(16, 185, 129, 0.55), 18, 0, 0, 4);
+}
+
+.toast-disconnected {
+    -fx-border-color: #ef4444;
+    -fx-effect: dropshadow(gaussian, rgba(239, 68, 68, 0.55), 18, 0, 0, 4);
+}
+
+.toast-icon-box {
+    -fx-min-width: 38px;
+    -fx-min-height: 38px;
+    -fx-max-width: 38px;
+    -fx-max-height: 38px;
+    -fx-background-color: rgba(16, 185, 129, 0.15);
+    -fx-background-radius: 10px;
+}
+
+.toast-disconnected .toast-icon-box {
+    -fx-background-color: rgba(239, 68, 68, 0.15);
+}
+
+.toast-title {
+    -fx-font-size: 11px;
+    -fx-font-weight: bold;
+    -fx-text-fill: #10b981;
+}
+
+.toast-disconnected .toast-title {
+    -fx-text-fill: #ef4444;
+}
+
+.toast-device {
+    -fx-font-size: 14px;
+    -fx-font-weight: bold;
+    -fx-text-fill: #ffffff;
+}
+
+.toast-desc {
+    -fx-font-size: 11px;
+    -fx-text-fill: #94a3b8;
+}
+
+.field-desc {
+    -fx-font-size: 10px;
+    -fx-text-fill: #60a5fa;
+    -fx-font-style: italic;
+    -fx-padding: 2px 0 0 2px;
+}
+
+.btn-demo-pnp {
+    -fx-background-color: #1e293b;
+    -fx-text-fill: #38bdf8;
+    -fx-border-color: #0284c7;
+    -fx-border-radius: 8px;
+    -fx-background-radius: 8px;
+    -fx-border-width: 1px;
+    -fx-font-size: 12px;
+    -fx-font-weight: bold;
+    -fx-cursor: hand;
+    -fx-padding: 8px 12px;
+    -fx-graphic-text-gap: 6px;
+}
+
+.btn-demo-pnp:hover {
+    -fx-background-color: #0c4a6e;
+    -fx-effect: dropshadow(gaussian, rgba(56, 189, 248, 0.35), 8, 0, 0, 2);
+}

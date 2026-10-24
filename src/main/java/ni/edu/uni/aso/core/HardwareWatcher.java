@@ -1,29 +1,38 @@
 package ni.edu.uni.aso.core;
 
 import javafx.application.Platform;
-import javafx.stage.Screen;
 
 import javax.swing.filechooser.FileSystemView;
+import java.io.BufferedReader;
 import java.io.File;
+import java.io.InputStreamReader;
+import java.nio.charset.StandardCharsets;
 import java.util.HashSet;
+import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * Servicio de monitoreo en tiempo real de Hardware del Sistema Operativo.
- * Implementa la detección de eventos Plug & Play (conexión y desconexión en caliente de USBs, discos y pantallas).
+ * Implementa la detección de eventos Plug & Play (conexión y desconexión en caliente de USBs, discos y periféricos externos).
+ * Realiza escaneo dual:
+ * 1. Ultrarrápido (0.001s) para almacenamiento y memorias USB mediante File.listRoots().
+ * 2. Asíncrono en segundo plano para cualquier periférico USB (mouse USB, teclado externo, celular, gamepad, etc.)
+ *    mediante la API de dispositivos PnP de Windows.
  */
 public class HardwareWatcher {
 
     public interface HardwareListener {
-        void onDriveConnected(IODevice device);
-        void onDriveDisconnected(String deviceId, String drivePath);
-        void onScreenChanged(int totalScreens, String details);
+        void onDeviceConnected(IODevice device);
+        void onDeviceDisconnected(String deviceId, String deviceName);
     }
 
     private final HardwareListener listener;
     private final Set<String> knownDriveRoots = new HashSet<>();
-    private int knownScreenCount = 0;
+    private final Map<String, String> knownPnpDevices = new ConcurrentHashMap<>();
     private final FileSystemView fileSystemView = FileSystemView.getFileSystemView();
+    private final AtomicBoolean isPnpScanning = new AtomicBoolean(false);
 
     public HardwareWatcher(HardwareListener listener) {
         this.listener = listener;
@@ -40,18 +49,28 @@ public class HardwareWatcher {
                 knownDriveRoots.add(root.getAbsolutePath());
             }
         }
-        try {
-            knownScreenCount = Screen.getScreens().size();
-        } catch (Exception ignored) {
-            knownScreenCount = 1;
+    }
+
+    /**
+     * Ejecuta una verificación del estado del hardware físico.
+     * Combina escaneo instantáneo de unidades de disco con escaneo asíncrono de periféricos USB.
+     */
+    public void scan() {
+        // 1. Escaneo ultrarrápido de unidades de almacenamiento (Memorias USB / Discos)
+        scanDriveRoots();
+
+        // 2. Escaneo en segundo plano de periféricos USB universales
+        if (isPnpScanning.compareAndSet(false, true)) {
+            Thread pnpThread = new Thread(this::scanWindowsUsbDevices, "USB-PnP-Scanner");
+            pnpThread.setDaemon(true);
+            pnpThread.start();
         }
     }
 
     /**
-     * Ejecuta una verificación del estado del hardware físico y dispara eventos ante cambios.
+     * Escanea unidades de almacenamiento mediante la API nativa de Java (latencia < 1ms).
      */
-    public void scan() {
-        // 1. Escaneo de Unidades de Almacenamiento (USB / Discos PnP)
+    private void scanDriveRoots() {
         File[] currentRoots = File.listRoots();
         Set<String> currentRootPaths = new HashSet<>();
 
@@ -60,18 +79,16 @@ public class HardwareWatcher {
                 String path = root.getAbsolutePath();
                 currentRootPaths.add(path);
 
-                // Nuevo periférico detectado (Plug & Play)
                 if (!knownDriveRoots.contains(path)) {
                     knownDriveRoots.add(path);
                     IODevice newDev = createDeviceFromRoot(root);
                     if (listener != null) {
-                        Platform.runLater(() -> listener.onDriveConnected(newDev));
+                        Platform.runLater(() -> listener.onDeviceConnected(newDev));
                     }
                 }
             }
         }
 
-        // Detección de desconexión en caliente (Dispositivo retirado)
         Set<String> disconnected = new HashSet<>(knownDriveRoots);
         disconnected.removeAll(currentRootPaths);
 
@@ -79,23 +96,74 @@ public class HardwareWatcher {
             knownDriveRoots.remove(disconnectedPath);
             String devId = "dev-" + disconnectedPath.replace(":", "").replace("\\", "").toLowerCase();
             if (listener != null) {
-                Platform.runLater(() -> listener.onDriveDisconnected(devId, disconnectedPath));
+                Platform.runLater(() -> listener.onDeviceDisconnected(devId, "Unidad " + disconnectedPath));
             }
         }
+    }
 
-        // 2. Escaneo de Monitores / Pantallas
+    /**
+     * Escanea dispositivos USB conectados en Windows mediante PowerShell / WMI PnP.
+     */
+    private void scanWindowsUsbDevices() {
         try {
-            int currentScreens = Screen.getScreens().size();
-            if (currentScreens != knownScreenCount) {
-                knownScreenCount = currentScreens;
-                String details = currentScreens > 1
-                        ? currentScreens + " Pantallas conectadas (Modo Extendido/HDMI)"
-                        : "1 Pantalla principal activa";
-                if (listener != null) {
-                    Platform.runLater(() -> listener.onScreenChanged(currentScreens, details));
+            // Comando que extrae FriendlyName e InstanceId de dispositivos USB presentes
+            String command = "powershell -NoProfile -ExecutionPolicy Bypass -Command " +
+                    "\"Get-PnpDevice -PresentOnly | Where-Object { $_.InstanceId -like 'USB*' -and $_.FriendlyName -notmatch 'Host|Root|Concentrador|Composite|Compuesto|Standard' } | " +
+                    "ForEach-Object { $_.InstanceId + ':::' + $_.FriendlyName + ':::' + $_.Class }\"";
+
+            Process process = Runtime.getRuntime().exec(command);
+            Set<String> currentPnpIds = new HashSet<>();
+
+            try (BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream(), StandardCharsets.UTF_8))) {
+                String line;
+                while ((line = reader.readLine()) != null) {
+                    line = line.trim();
+                    if (line.isEmpty() || !line.contains(":::")) {
+                        continue;
+                    }
+
+                    String[] parts = line.split(":::");
+                    if (parts.length >= 2) {
+                        String instanceId = parts[0].trim();
+                        String friendlyName = parts[1].trim();
+                        String devClass = parts.length > 2 ? parts[2].trim() : "USB";
+
+                        currentPnpIds.add(instanceId);
+
+                        // Si es un dispositivo nuevo que antes no estaba
+                        if (!knownPnpDevices.containsKey(instanceId)) {
+                            knownPnpDevices.put(instanceId, friendlyName);
+
+                            // Omitir si es solo el disco C o similar que ya manejamos
+                            String devId = "dev-pnp-" + Math.abs(instanceId.hashCode() % 10000);
+                            IODevice usbDev = new IODevice(devId, friendlyName, "USB", 120, true, null, true);
+                            usbDev.setExtraInfo("Clase: " + devClass + " • Bus USB 2.0/3.0 PnP");
+
+                            if (listener != null) {
+                                Platform.runLater(() -> listener.onDeviceConnected(usbDev));
+                            }
+                        }
+                    }
                 }
             }
+
+            process.waitFor();
+
+            // Detectar desconexión de dispositivos PnP
+            Set<String> disconnectedPnp = new HashSet<>(knownPnpDevices.keySet());
+            disconnectedPnp.removeAll(currentPnpIds);
+
+            for (String disId : disconnectedPnp) {
+                String name = knownPnpDevices.remove(disId);
+                String devId = "dev-pnp-" + Math.abs(disId.hashCode() % 10000);
+                if (listener != null) {
+                    Platform.runLater(() -> listener.onDeviceDisconnected(devId, name));
+                }
+            }
+
         } catch (Exception ignored) {
+        } finally {
+            isPnpScanning.set(false);
         }
     }
 
@@ -113,7 +181,7 @@ public class HardwareWatcher {
         double freeGb = freeSpace / (1024.0 * 1024.0 * 1024.0);
 
         String typeDesc;
-        boolean isRemovable = false;
+        boolean isRemovable;
         try {
             typeDesc = fileSystemView.getSystemTypeDescription(root);
             if (typeDesc == null) typeDesc = "Disco";

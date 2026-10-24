@@ -30,7 +30,7 @@ public class IOSubsystem {
         // CopyOnWriteArrayList para concurrencia segura ante eventos Plug & Play dinámicos
         this.devices = new CopyOnWriteArrayList<>();
 
-        // 1. Disco Local Físico (C:)
+        // 1. Disco Local Físico (C:) - Siempre presente
         File rootC = new File("C:\\");
         long totalC = rootC.getTotalSpace();
         long freeC = rootC.getFreeSpace();
@@ -43,20 +43,20 @@ public class IOSubsystem {
         diskC.setExtraInfo(String.format("%.1f GB libres de %.1f GB (NVMe/NTFS)", freeGb, totalGb));
         this.devices.add(diskC);
 
-        // 2. Teclado Físico (IRQ 1 del estándar PC)
+        // 2. Teclado Físico (IRQ 1 del estándar PC - Dispositivo de Entrada por Caracteres)
         IODevice keyboard = new IODevice("dev-2", "Teclado Físico (IRQ 1)", "Teclado", 50, true, null, false);
-        keyboard.setExtraInfo("Listo • Presiona cualquier tecla para generar interrupción");
+        keyboard.setExtraInfo("Buffer stdin vacío • Presiona cualquier tecla para capturar");
         this.devices.add(keyboard);
 
-        // 3. Mouse / Ratón Físico (IRQ 12)
+        // 3. Mouse / Ratón Físico (IRQ 12 - Dispositivo de Entrada por Eventos)
         IODevice mouse = new IODevice("dev-3", "Mouse / Puntero (IRQ 12)", "Mouse", 50, true, null, false);
-        mouse.setExtraInfo("Listo • Haz click en la ventana para generar interrupción");
+        mouse.setExtraInfo("Coordenadas en espera • Haz click en la ventana para capturar");
         this.devices.add(mouse);
 
-        // 4. Monitor Principal
-        IODevice monitor = new IODevice("dev-4", "Monitor Principal", "Monitor", 100, true, null, false);
-        monitor.setExtraInfo("Pantalla 1 activa • Conexión GPU nativa");
-        this.devices.add(monitor);
+        // 4. Puerto USB Host Universal (Reemplaza al monitor para permitir probar cualquier periférico USB)
+        IODevice usbHost = new IODevice("dev-4", "Puerto USB Host (PnP)", "USB", 100, true, null, false);
+        usbHost.setExtraInfo("Listo para Plug & Play • Conecta una USB, celular o periférico");
+        this.devices.add(usbHost);
 
         // 5. Escaneo inicial de otros discos/USBs ya conectados al arrancar
         detectInitialDrives();
@@ -74,7 +74,6 @@ public class IOSubsystem {
                     String devId = "dev-" + letter.replace(":", "").toLowerCase();
                     long total = root.getTotalSpace();
                     long free = root.getFreeSpace();
-                    double totalGb = total / (1024.0 * 1024.0 * 1024.0);
                     double freeGb = free / (1024.0 * 1024.0 * 1024.0);
 
                     IODevice usbDev = new IODevice(devId, "Memoria USB (" + letter + ")", "Disco", 120, true, path, true);
@@ -113,20 +112,19 @@ public class IOSubsystem {
     public void addDynamicDevice(IODevice device) {
         if (device != null && findDeviceById(device.getId()) == null) {
             this.devices.add(device);
-            log(String.format("[Plug & Play] Nuevo hardware conectado: %s (Ruta: %s) [Controlador cargado].",
-                    device.getName(), device.getPhysicalPath()));
+            log(String.format("[Plug & Play] Nuevo hardware conectado: %s [Controlador cargado con éxito].",
+                    device.getName()));
         }
     }
 
     /**
      * Remueve o desvincula un dispositivo desconectado en caliente.
      */
-    public void removeDynamicDevice(String deviceId, String drivePath) {
+    public void removeDynamicDevice(String deviceId, String deviceName) {
         IODevice dev = findDeviceById(deviceId);
         if (dev != null) {
             this.devices.remove(dev);
-            log(String.format("[Plug & Play] Hardware desconectado: %s (%s). Recursos de E/S liberados.",
-                    dev.getName(), drivePath));
+            log(String.format("[Plug & Play] Hardware desconectado: %s. Recursos de E/S liberados.", deviceName));
         }
     }
 
@@ -136,10 +134,9 @@ public class IOSubsystem {
     public void handleKeyboardInterrupt(String text, String code) {
         IODevice kbd = findDeviceById("dev-2");
         if (kbd != null) {
+            kbd.recordKeyStroke(text, code);
             String keyDesc = (text != null && !text.isEmpty()) ? "'" + text + "'" : code;
-            kbd.setExtraInfo(String.format("Última tecla: %s [%s] (IRQ 1)", keyDesc, code));
-            kbd.setCurrentBuffer(Math.min(kbd.getBufferSize(), kbd.getCurrentBuffer() + 10));
-            log(String.format("[Hardware IRQ 1] Interrupción de teclado físico: Tecla %s (%s) leída.", keyDesc, code));
+            log(String.format("[Hardware IRQ 1] Interrupción de teclado físico: Tecla %s (%s) almacenada en buffer stdin.", keyDesc, code));
         }
     }
 
@@ -149,8 +146,7 @@ public class IOSubsystem {
     public void handleMouseInterrupt(String button, double x, double y) {
         IODevice mouse = findDeviceById("dev-3");
         if (mouse != null) {
-            mouse.setExtraInfo(String.format("Último click: %s en (%d, %d)", button, (int) x, (int) y));
-            mouse.setCurrentBuffer(Math.min(mouse.getBufferSize(), mouse.getCurrentBuffer() + 10));
+            mouse.recordMouseAction(button, (int) x, (int) y);
             log(String.format("[Hardware IRQ 12] Interrupción de ratón físico: Click %s en posición (%d, %d).",
                     button, (int) x, (int) y));
         }
@@ -171,8 +167,8 @@ public class IOSubsystem {
      * 1. Despacha la siguiente petición si el dispositivo destino está LIBRE.
      * 2. Itera sobre los dispositivos:
      *    - Si está INTERRUMPIDO, la rutina ISR concluyó y se invoca resetInterrupt().
-     *    - Si está OCUPADO, incrementa el buffer. Si alcanza el payload, ejecuta la E/S física real si aplica,
-     *      mide la latencia de hardware y dispara la interrupción (ISR).
+     *    - Si está OCUPADO, incrementa el buffer. Si alcanza el payload, ejecuta la E/S contextualizada
+     *      (fsync en disco, stdin en teclado, etc.), mide latencia y dispara la interrupción (ISR).
      */
     public void tick() {
         // 1. Despacho de la cola si el dispositivo destino está LIBRE
@@ -200,11 +196,9 @@ public class IOSubsystem {
 
                 IORequest req = device.getCurrentRequest();
                 if (req != null && newBuffer >= req.getPayloadSize()) {
-                    // Si es un dispositivo de almacenamiento físico real, realizar la E/S física con fsync()
-                    if (device.isPhysical() && device.getPhysicalPath() != null) {
-                        String ioResult = device.executePhysicalIO(req.getOperationType(), req.getPayloadSize());
-                        log("[Hardware E/S Física] " + ioResult);
-                    }
+                    // Ejecución de la operación contextualizada del hardware
+                    String ioResult = device.executePhysicalIO(req.getOperationType(), req.getPayloadSize());
+                    log("[Hardware E/S] " + ioResult);
 
                     device.setStatus(DeviceStatus.INTERRUMPIDO);
                     log("[Hardware] Interrupción (ISR) generada por " + device.getName());
