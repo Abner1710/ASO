@@ -316,10 +316,14 @@ public class DashboardController {
     private void setupHardwareWatcher() {
         hardwareWatcher = new HardwareWatcher(new HardwareWatcher.HardwareListener() {
             @Override
-            public void onDeviceConnected(IODevice device) {
+            public void onDeviceConnected(IODevice device, boolean isHotplug) {
                 subsystem.addDynamicDevice(device);
-                showDetectionToast("¡NUEVO HARDWARE DETECTADO EN CALIENTE!", device.getName(),
-                        "Controlador PnP cargado con éxito • Descriptores de hardware asignados", true);
+                if (isHotplug) {
+                    showDetectionToast("¡NUEVO HARDWARE DETECTADO EN CALIENTE!", device.getName(),
+                            "Controlador PnP cargado con éxito • Descriptores de hardware asignados", true);
+                } else {
+                    subsystem.log("[Kernel Boot] Dispositivo externo preexistente detectado al arranque: " + device.getName());
+                }
                 updateTargetDeviceCombo();
                 updateUI();
             }

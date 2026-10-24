@@ -24,7 +24,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 public class HardwareWatcher {
 
     public interface HardwareListener {
-        void onDeviceConnected(IODevice device);
+        void onDeviceConnected(IODevice device, boolean isHotplug);
         void onDeviceDisconnected(String deviceId, String deviceName);
     }
 
@@ -33,6 +33,7 @@ public class HardwareWatcher {
     private final Map<String, String> knownPnpDevices = new ConcurrentHashMap<>();
     private final FileSystemView fileSystemView = FileSystemView.getFileSystemView();
     private final AtomicBoolean isPnpScanning = new AtomicBoolean(false);
+    private final AtomicBoolean isInitialPnpScan = new AtomicBoolean(true);
 
     public HardwareWatcher(HardwareListener listener) {
         this.listener = listener;
@@ -83,7 +84,7 @@ public class HardwareWatcher {
                     knownDriveRoots.add(path);
                     IODevice newDev = createDeviceFromRoot(root);
                     if (listener != null) {
-                        Platform.runLater(() -> listener.onDeviceConnected(newDev));
+                        Platform.runLater(() -> listener.onDeviceConnected(newDev, true));
                     }
                 }
             }
@@ -139,8 +140,9 @@ public class HardwareWatcher {
                             IODevice usbDev = new IODevice(devId, friendlyName, "USB", 120, true, null, true);
                             usbDev.setExtraInfo("Clase: " + devClass + " • Bus USB 2.0/3.0 PnP");
 
+                            boolean isHotplug = !isInitialPnpScan.get();
                             if (listener != null) {
-                                Platform.runLater(() -> listener.onDeviceConnected(usbDev));
+                                Platform.runLater(() -> listener.onDeviceConnected(usbDev, isHotplug));
                             }
                         }
                     }
@@ -148,6 +150,7 @@ public class HardwareWatcher {
             }
 
             process.waitFor();
+            isInitialPnpScan.set(false);
 
             // Detectar desconexión de dispositivos PnP
             Set<String> disconnectedPnp = new HashSet<>(knownPnpDevices.keySet());
