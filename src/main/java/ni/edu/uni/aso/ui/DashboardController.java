@@ -51,9 +51,13 @@ public class DashboardController {
     // Banner Toast Flotante de Detección
     @FXML private HBox detectionToast;
     @FXML private HBox toastIconBox;
+    @FXML private Region toastPulseDot;
     @FXML private Label lblToastTitle;
+    @FXML private Label lblToastBadge;
     @FXML private Label lblToastDevice;
     @FXML private Label lblToastDesc;
+    @FXML private ProgressBar toastProgressBar;
+    @FXML private Button btnDismissToast;
 
     // Controles FXML - Botones y Formularios
     @FXML private Button btnReadRequest;
@@ -87,8 +91,10 @@ public class DashboardController {
     private int totalRequestsGenerated = 0;
     private int demoDeviceIndex = 0;
     private Timeline stressTimeline;
+    private Timeline toastCountdownTimeline;
     private HardwareWatcher hardwareWatcher;
     private final Map<String, DeviceStatus> lastKnownDeviceStatus = new HashMap<>();
+    private final java.util.Set<String> newlyActivatedDeviceIds = new java.util.HashSet<>();
 
     @FXML
     public void initialize() {
@@ -97,6 +103,10 @@ public class DashboardController {
         setupHardwareWatcher();
         updateTargetDeviceCombo();
         setupTargetDeviceListener();
+
+        if (btnDismissToast != null) {
+            btnDismissToast.setOnAction(e -> hideDetectionToast());
+        }
 
         // Enlazar eventos de botones manuales
         if (btnReadRequest != null) {
@@ -132,11 +142,25 @@ public class DashboardController {
             mainContainer.sceneProperty().addListener((obs, oldScene, newScene) -> {
                 if (newScene != null) {
                     newScene.setOnKeyPressed(event -> {
+                        IODevice kbd = subsystem.findDeviceById("dev-2");
+                        boolean wasOff = (kbd != null && kbd.getStatus() == DeviceStatus.APAGADO);
                         subsystem.handleKeyboardInterrupt(event.getText(), event.getCode().toString());
+                        if (wasOff && kbd != null) {
+                            newlyActivatedDeviceIds.add("dev-2");
+                            showDetectionToast("¡TECLADO FÍSICO ACTIVADO!", "Teclado Físico (IRQ 1)",
+                                    "Pulsación de tecla detectada • Asignado a vector de interrupción IRQ 1", true);
+                        }
                         updateUI();
                     });
                     newScene.setOnMouseClicked(event -> {
+                        IODevice mouse = subsystem.findDeviceById("dev-3");
+                        boolean wasOff = (mouse != null && mouse.getStatus() == DeviceStatus.APAGADO);
                         subsystem.handleMouseInterrupt(event.getButton().toString(), event.getX(), event.getY());
+                        if (wasOff && mouse != null) {
+                            newlyActivatedDeviceIds.add("dev-3");
+                            showDetectionToast("¡PUNTERO FÍSICO ACTIVADO!", "Mouse / Puntero (IRQ 12)",
+                                    "Interacción de ratón detectada • Asignado a vector de interrupción IRQ 12", true);
+                        }
                         updateUI();
                     });
                 }
@@ -190,6 +214,7 @@ public class DashboardController {
 
     /**
      * Muestra la animación visual y sonora de detección de hardware (Toast Banner).
+     * Integra resorte elástico (scale bounce), barra animada de cuenta regresiva y cierre rápido.
      */
     private void showDetectionToast(String title, String deviceName, String desc, boolean isConnected) {
         if (detectionToast == null) return;
@@ -198,6 +223,10 @@ public class DashboardController {
             Toolkit.getDefaultToolkit().beep();
         } catch (Exception ignored) {}
 
+        if (toastCountdownTimeline != null) {
+            toastCountdownTimeline.stop();
+        }
+
         lblToastTitle.setText(title);
         lblToastDevice.setText(deviceName);
         lblToastDesc.setText(desc);
@@ -205,42 +234,98 @@ public class DashboardController {
         detectionToast.getStyleClass().removeAll("toast-connected", "toast-disconnected");
         detectionToast.getStyleClass().add(isConnected ? "toast-connected" : "toast-disconnected");
 
+        if (toastPulseDot != null) {
+            toastPulseDot.getStyleClass().removeAll("dot-connected", "dot-disconnected");
+            toastPulseDot.getStyleClass().add(isConnected ? "dot-connected" : "dot-disconnected");
+        }
+
+        if (lblToastBadge != null) {
+            lblToastBadge.setText(isConnected ? "PnP ONLINE" : "PnP OFFLINE");
+            lblToastBadge.setStyle(isConnected
+                    ? "-fx-text-fill: #34d399; -fx-background-color: rgba(16, 185, 129, 0.2); -fx-padding: 2px 7px; -fx-background-radius: 4px; -fx-font-size: 10px; -fx-font-weight: bold;"
+                    : "-fx-text-fill: #f87171; -fx-background-color: rgba(239, 68, 68, 0.2); -fx-padding: 2px 7px; -fx-background-radius: 4px; -fx-font-size: 10px; -fx-font-weight: bold;");
+        }
+
         if (toastIconBox != null) {
             String iconPath = isConnected ? IconHelper.ICON_USB : IconHelper.ICON_ALERT;
             String iconColor = isConnected ? "#10b981" : "#ef4444";
-            toastIconBox.getChildren().setAll(IconHelper.createIcon(iconPath, iconColor, 1.2));
+            toastIconBox.getChildren().setAll(IconHelper.createIcon(iconPath, iconColor, 1.25));
+        }
+
+        if (toastProgressBar != null) {
+            toastProgressBar.setProgress(1.0);
+            toastProgressBar.setStyle(isConnected ? "-fx-accent: #10b981;" : "-fx-accent: #ef4444;");
         }
 
         detectionToast.setVisible(true);
         detectionToast.setManaged(true);
         detectionToast.setOpacity(0.0);
-        detectionToast.setTranslateY(-15);
+        detectionToast.setTranslateY(-20);
+        detectionToast.setScaleX(0.92);
+        detectionToast.setScaleY(0.92);
 
-        // Animación de entrada: deslizamiento hacia abajo + fade in
-        FadeTransition fadeIn = new FadeTransition(Duration.millis(350), detectionToast);
+        // Animación dinámica de entrada: Elastic Spring + Slide Down + Fade In
+        FadeTransition fadeIn = new FadeTransition(Duration.millis(300), detectionToast);
         fadeIn.setFromValue(0.0);
         fadeIn.setToValue(1.0);
 
-        TranslateTransition slideDown = new TranslateTransition(Duration.millis(350), detectionToast);
-        slideDown.setFromY(-15);
+        TranslateTransition slideDown = new TranslateTransition(Duration.millis(300), detectionToast);
+        slideDown.setFromY(-20);
         slideDown.setToY(0);
+
+        ScaleTransition scaleBounce = new ScaleTransition(Duration.millis(300), detectionToast);
+        scaleBounce.setFromX(0.92);
+        scaleBounce.setFromY(0.92);
+        scaleBounce.setToX(1.03);
+        scaleBounce.setToY(1.03);
+        scaleBounce.setOnFinished(e -> {
+            ScaleTransition settle = new ScaleTransition(Duration.millis(120), detectionToast);
+            settle.setToX(1.0);
+            settle.setToY(1.0);
+            settle.play();
+        });
 
         fadeIn.play();
         slideDown.play();
+        scaleBounce.play();
 
-        // Pausa de 3.8 segundos y luego desvanecimiento
-        PauseTransition pause = new PauseTransition(Duration.millis(3800));
-        pause.setOnFinished(e -> {
-            FadeTransition fadeOut = new FadeTransition(Duration.millis(400), detectionToast);
-            fadeOut.setFromValue(1.0);
-            fadeOut.setToValue(0.0);
-            fadeOut.setOnFinished(ev -> {
-                detectionToast.setVisible(false);
-                detectionToast.setManaged(false);
-            });
-            fadeOut.play();
+        // Barra de progreso con cuenta regresiva dinámica (4.0 segundos)
+        int totalSteps = 40;
+        final double[] currentProg = {1.0};
+        toastCountdownTimeline = new Timeline(new KeyFrame(Duration.millis(100), ev -> {
+            currentProg[0] -= (1.0 / totalSteps);
+            if (toastProgressBar != null) {
+                toastProgressBar.setProgress(Math.max(0, currentProg[0]));
+            }
+        }));
+        toastCountdownTimeline.setCycleCount(totalSteps);
+        toastCountdownTimeline.setOnFinished(ev -> hideDetectionToast());
+        toastCountdownTimeline.play();
+    }
+
+    /**
+     * Oculta el Toast de detección con animación suave de salida.
+     */
+    private void hideDetectionToast() {
+        if (detectionToast == null || !detectionToast.isVisible()) return;
+        if (toastCountdownTimeline != null) {
+            toastCountdownTimeline.stop();
+        }
+
+        FadeTransition fadeOut = new FadeTransition(Duration.millis(300), detectionToast);
+        fadeOut.setFromValue(detectionToast.getOpacity());
+        fadeOut.setToValue(0.0);
+
+        TranslateTransition slideUp = new TranslateTransition(Duration.millis(300), detectionToast);
+        slideUp.setToY(-20);
+
+        fadeOut.setOnFinished(e -> {
+            detectionToast.setVisible(false);
+            detectionToast.setManaged(false);
         });
-        pause.play();
+
+        fadeOut.play();
+        slideUp.play();
     }
 
     /**
@@ -300,12 +385,24 @@ public class DashboardController {
         String name = demoNames[demoDeviceIndex % demoNames.length];
         demoDeviceIndex++;
 
-        String devId = "dev-demo-" + System.currentTimeMillis() % 1000;
-        IODevice demoDev = new IODevice(devId, name, "USB", 120, true, null, true);
-        demoDev.setExtraInfo("Conexión USB 3.0 • Tasa de transferencia: 480 Mbps");
-
-        subsystem.addDynamicDevice(demoDev);
-        showDetectionToast("¡NUEVO HARDWARE DETECTADO EN CALIENTE!", name, "Controlador USB asignado • Pipe de comunicación inicializado", true);
+        IODevice dev5 = subsystem.findDeviceById("dev-5");
+        if (dev5 != null && dev5.getStatus() == DeviceStatus.APAGADO) {
+            dev5.setStatus(DeviceStatus.LIBRE);
+            dev5.setExtraInfo("● En línea • " + name + " conectado");
+            newlyActivatedDeviceIds.add("dev-5");
+            showDetectionToast("¡NUEVO HARDWARE DETECTADO EN CALIENTE!", name,
+                    "Periférico USB/Cooler energizado y reconocido en bus PnP", true);
+            subsystem.log("[Demo PnP] Periférico vinculado a dev-5: " + name);
+        } else {
+            String devId = "dev-demo-" + System.currentTimeMillis() % 1000;
+            IODevice demoDev = new IODevice(devId, name, "USB", 120, true, null, true);
+            demoDev.setExtraInfo("Conexión USB 3.0 • Tasa de transferencia: 480 Mbps");
+            demoDev.setStatus(DeviceStatus.LIBRE);
+            subsystem.addDynamicDevice(demoDev);
+            newlyActivatedDeviceIds.add(devId);
+            showDetectionToast("¡NUEVO HARDWARE DETECTADO EN CALIENTE!", name,
+                    "Controlador USB asignado • Pipe de comunicación inicializado", true);
+        }
         updateTargetDeviceCombo();
         updateUI();
     }
@@ -317,35 +414,137 @@ public class DashboardController {
         hardwareWatcher = new HardwareWatcher(new HardwareWatcher.HardwareListener() {
             @Override
             public void onDeviceConnected(IODevice device, boolean isHotplug) {
-                subsystem.addDynamicDevice(device);
-                if (isHotplug) {
-                    showDetectionToast("¡NUEVO HARDWARE DETECTADO EN CALIENTE!", device.getName(),
-                            "Controlador PnP cargado con éxito • Descriptores de hardware asignados", true);
-                } else {
-                    subsystem.log("[Kernel Boot] Dispositivo externo preexistente detectado al arranque: " + device.getName());
-                }
-                updateTargetDeviceCombo();
-                updateUI();
+                handleDeviceConnection(device, isHotplug);
             }
 
             @Override
             public void onDeviceDisconnected(String deviceId, String deviceName) {
-                subsystem.removeDynamicDevice(deviceId, deviceName);
-                showDetectionToast("HARDWARE DESCONECTADO", deviceName,
-                        "Periférico retirado en caliente • Liberando búferes y descriptores de E/S", false);
-                updateTargetDeviceCombo();
-                updateUI();
+                handleDeviceDisconnection(deviceId, deviceName);
             }
         });
 
-        // Hilo/Timeline de sondeo de hardware en caliente cada 1500 ms
-        Timeline pnpWatcherTimeline = new Timeline(new KeyFrame(Duration.millis(1500), e -> {
+        // Hilo de sondeo de hardware en caliente cada 2000 ms
+        Timeline pnpWatcherTimeline = new Timeline(new KeyFrame(Duration.millis(2000), e -> {
             if (hardwareWatcher != null) {
                 hardwareWatcher.scan();
             }
         }));
         pnpWatcherTimeline.setCycleCount(Timeline.INDEFINITE);
         pnpWatcherTimeline.play();
+    }
+
+    /**
+     * Procesa la conexión de un dispositivo detectado vinculándolo inteligentemente a los controladores predeterminados
+     * o agregándolo como tarjeta PnP dinámica.
+     */
+    private void handleDeviceConnection(IODevice device, boolean isHotplug) {
+        String devName = device.getName();
+        String devClass = device.getType();
+        String lowerName = devName.toLowerCase();
+
+        // 1. Vincular a Teclado Físico (dev-2) si está apagado
+        IODevice kbd = subsystem.findDeviceById("dev-2");
+        if (kbd != null && kbd.getStatus() == DeviceStatus.APAGADO &&
+                (devClass.equalsIgnoreCase("Teclado") || lowerName.contains("teclado") || lowerName.contains("keyboard"))) {
+            kbd.setStatus(DeviceStatus.LIBRE);
+            kbd.setExtraInfo("● En línea • " + devName + " • IRQ 1");
+            newlyActivatedDeviceIds.add("dev-2");
+            showDetectionToast("¡CONTROLADOR DE TECLADO EN LÍNEA!", devName,
+                    "Dispositivo físico detectado y vinculado a IRQ 1", true);
+            subsystem.log("[Plug & Play] Teclado físico vinculado al subsistema: " + devName);
+            updateTargetDeviceCombo();
+            updateUI();
+            return;
+        }
+
+        // 2. Vincular a Mouse/Puntero (dev-3) si está apagado
+        IODevice mouse = subsystem.findDeviceById("dev-3");
+        if (mouse != null && mouse.getStatus() == DeviceStatus.APAGADO &&
+                (devClass.equalsIgnoreCase("Mouse") || lowerName.contains("mouse") || lowerName.contains("ratón") || lowerName.contains("touchpad"))) {
+            mouse.setStatus(DeviceStatus.LIBRE);
+            mouse.setExtraInfo("● En línea • " + devName + " • IRQ 12");
+            newlyActivatedDeviceIds.add("dev-3");
+            showDetectionToast("¡CONTROLADOR DE PUNTERO EN LÍNEA!", devName,
+                    "Dispositivo físico detectado y vinculado a IRQ 12", true);
+            subsystem.log("[Plug & Play] Mouse físico vinculado al subsistema: " + devName);
+            updateTargetDeviceCombo();
+            updateUI();
+            return;
+        }
+
+        // 3. Vincular a Controlador Bluetooth (dev-4) si está apagado
+        IODevice bluetooth = subsystem.findDeviceById("dev-4");
+        if (bluetooth != null && bluetooth.getStatus() == DeviceStatus.APAGADO &&
+                (devClass.equalsIgnoreCase("Bluetooth") || lowerName.contains("bluetooth"))) {
+            bluetooth.setStatus(DeviceStatus.LIBRE);
+            bluetooth.setExtraInfo("● En línea • " + devName + " • Radio PnP");
+            newlyActivatedDeviceIds.add("dev-4");
+            showDetectionToast("¡DRIVER BLUETOOTH EN LÍNEA!", devName,
+                    "Adaptador de radio inalámbrico reconocido y activado", true);
+            subsystem.log("[Plug & Play] Radio Bluetooth vinculada al subsistema: " + devName);
+            updateTargetDeviceCombo();
+            updateUI();
+            return;
+        }
+
+        // 4. Vincular a Puerto USB Host / Cooler (dev-5) si está apagado
+        IODevice usbHost = subsystem.findDeviceById("dev-5");
+        if (usbHost != null && usbHost.getStatus() == DeviceStatus.APAGADO &&
+                (lowerName.contains("cooler") || lowerName.contains("usb") || lowerName.contains("hub") || device.isRemovable())) {
+            usbHost.setStatus(DeviceStatus.LIBRE);
+            usbHost.setExtraInfo("● En línea • " + devName + " conectado");
+            newlyActivatedDeviceIds.add("dev-5");
+            showDetectionToast("¡NUEVO HARDWARE DETECTADO EN CALIENTE!", devName,
+                    "Periférico USB/Cooler energizado y reconocido en bus PnP", true);
+            subsystem.log("[Plug & Play] Dispositivo USB vinculado a puerto host: " + devName);
+            updateTargetDeviceCombo();
+            updateUI();
+            return;
+        }
+
+        // 5. De lo contrario, registrar como nuevo dispositivo dinámico independiente
+        device.setStatus(DeviceStatus.LIBRE);
+        subsystem.addDynamicDevice(device);
+        newlyActivatedDeviceIds.add(device.getId());
+        showDetectionToast("¡NUEVO HARDWARE DETECTADO EN CALIENTE!", devName,
+                "Controlador PnP cargado con éxito • Descriptores de hardware asignados", true);
+        updateTargetDeviceCombo();
+        updateUI();
+    }
+
+    /**
+     * Procesa la desconexión de hardware en caliente retirándolo de la lista o regresando a standby.
+     */
+    private void handleDeviceDisconnection(String deviceId, String deviceName) {
+        // Verificar si es un dispositivo dinámico
+        IODevice dev = subsystem.findDeviceById(deviceId);
+        if (dev != null) {
+            subsystem.removeDynamicDevice(deviceId, deviceName);
+            showDetectionToast("HARDWARE DESCONECTADO", deviceName,
+                    "Periférico retirado en caliente • Liberando búferes y descriptores de E/S", false);
+            updateTargetDeviceCombo();
+            updateUI();
+            return;
+        }
+
+        // Verificar si corresponde a dev-5 (USB Host/Cooler)
+        IODevice usbHost = subsystem.findDeviceById("dev-5");
+        if (usbHost != null && usbHost.getStatus() != DeviceStatus.APAGADO &&
+                (usbHost.getExtraInfo().contains(deviceName) || deviceName.toLowerCase().contains("cooler") || deviceName.toLowerCase().contains("usb"))) {
+            usbHost.setStatus(DeviceStatus.APAGADO);
+            usbHost.setExtraInfo("○ Standby • Esperando conexión de Cooler, USB o periférico...");
+            showDetectionToast("HARDWARE DESCONECTADO", deviceName,
+                    "Periférico retirado en caliente • Puerto USB en standby", false);
+            updateTargetDeviceCombo();
+            updateUI();
+            return;
+        }
+
+        // Aviso genérico de desconexión
+        showDetectionToast("HARDWARE DESCONECTADO", deviceName,
+                "Periférico retirado en caliente • Recursos liberados por el Kernel", false);
+        updateTargetDeviceCombo();
+        updateUI();
     }
 
     /**
@@ -358,7 +557,8 @@ public class DashboardController {
         cmbTargetDevice.getItems().clear();
         cmbTargetDevice.getItems().add("[Automático / Cualquier Dispositivo]");
         for (IODevice dev : subsystem.getDevices()) {
-            cmbTargetDevice.getItems().add(dev.getName() + " (" + dev.getId() + ")");
+            String statusSuffix = dev.getStatus() == DeviceStatus.APAGADO ? " (STANDBY)" : " (ONLINE)";
+            cmbTargetDevice.getItems().add(dev.getName() + " (" + dev.getId() + ")" + statusSuffix);
         }
 
         if (currentSelection != null && cmbTargetDevice.getItems().contains(currentSelection)) {
@@ -492,11 +692,13 @@ public class DashboardController {
     }
 
     /**
-     * Genera una petición de E/S considerando la selección del usuario o distribución equilibrada.
+     * Genera una petición de E/S considerando la selección del usuario o distribución equilibrada entre dispositivos activos.
      */
     private void handleGenerateRequest(OperationType type) {
-        List<IODevice> devices = subsystem.getDevices();
-        if (devices.isEmpty()) {
+        List<IODevice> onlineDevices = subsystem.getDevices().stream()
+                .filter(d -> d.getStatus() != DeviceStatus.APAGADO)
+                .toList();
+        if (onlineDevices.isEmpty()) {
             return;
         }
 
@@ -504,7 +706,7 @@ public class DashboardController {
         if (cmbTargetDevice != null && cmbTargetDevice.getValue() != null) {
             String selected = cmbTargetDevice.getValue();
             if (!selected.startsWith("[Auto")) {
-                for (IODevice d : devices) {
+                for (IODevice d : subsystem.getDevices()) {
                     if (selected.contains("(" + d.getId() + ")")) {
                         target = d;
                         break;
@@ -514,7 +716,7 @@ public class DashboardController {
         }
 
         if (target == null) {
-            target = devices.get(random.nextInt(devices.size()));
+            target = onlineDevices.get(random.nextInt(onlineDevices.size()));
         }
 
         int payload = 30 + random.nextInt(50);
@@ -539,8 +741,8 @@ public class DashboardController {
         }
         if (lblActiveDevices != null) {
             int total = subsystem.getDevices().size();
-            long physicalCount = subsystem.getDevices().stream().filter(IODevice::isPhysical).count();
-            lblActiveDevices.setText(total + " (" + physicalCount + " Físicos)");
+            long onlineCount = subsystem.getDevices().stream().filter(d -> d.getStatus() != DeviceStatus.APAGADO).count();
+            lblActiveDevices.setText(onlineCount + " / " + total + " Activos");
         }
 
         // 2. Actualizar Gestor de Colas
@@ -554,6 +756,11 @@ public class DashboardController {
             for (IODevice device : subsystem.getDevices()) {
                 VBox card = createDeviceCard(device);
                 devicesContainer.getChildren().add(card);
+
+                // Animación vistosa al activarse en caliente
+                if (newlyActivatedDeviceIds.remove(device.getId())) {
+                    triggerActivationAnimation(card);
+                }
 
                 // Micro-animación de pulso visual cuando el periférico entra en estado INTERRUMPIDO
                 DeviceStatus prevStatus = lastKnownDeviceStatus.get(device.getId());
@@ -587,7 +794,14 @@ public class DashboardController {
         String badgeTextColor;
         String iconColor;
 
-        if (device.getStatus() == DeviceStatus.INTERRUMPIDO) {
+        if (device.getStatus() == DeviceStatus.APAGADO) {
+            borderColor = "#24324a";
+            badgeText = "○ STANDBY (APAGADO)";
+            badgeBg = "rgba(36, 50, 74, 0.4)";
+            badgeTextColor = "#94a3b8";
+            iconColor = "#475569";
+            card.getStyleClass().add("device-offline");
+        } else if (device.getStatus() == DeviceStatus.INTERRUMPIDO) {
             borderColor = "#ef4444";
             badgeText = "● ISR PENDIENTE";
             badgeBg = "rgba(239, 68, 68, 0.2)";
@@ -603,7 +817,7 @@ public class DashboardController {
             card.getStyleClass().add("device-busy");
         } else {
             borderColor = "#10b981";
-            badgeText = "● LIBRE";
+            badgeText = "● ONLINE (ACTIVO)";
             badgeBg = "rgba(16, 185, 129, 0.16)";
             badgeTextColor = "#6ee7b7";
             iconColor = "#10b981";
@@ -713,6 +927,27 @@ public class DashboardController {
         st.setToY(1.03);
         st.setAutoReverse(true);
         st.setCycleCount(2);
+        st.play();
+    }
+
+    /**
+     * Aplica una animación vistosa de activación en caliente (escala, resorte elástico y resplandor neón).
+     */
+    private void triggerActivationAnimation(VBox card) {
+        card.getStyleClass().add("device-activated");
+
+        ScaleTransition st = new ScaleTransition(Duration.millis(260), card);
+        st.setFromX(0.92);
+        st.setFromY(0.92);
+        st.setToX(1.05);
+        st.setToY(1.05);
+        st.setAutoReverse(true);
+        st.setCycleCount(2);
+        st.setOnFinished(e -> {
+            PauseTransition pause = new PauseTransition(Duration.millis(1400));
+            pause.setOnFinished(ev -> card.getStyleClass().remove("device-activated"));
+            pause.play();
+        });
         st.play();
     }
 }

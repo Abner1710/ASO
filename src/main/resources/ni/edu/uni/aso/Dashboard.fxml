@@ -5,6 +5,7 @@
 <?import javafx.scene.control.ComboBox?>
 <?import javafx.scene.control.Label?>
 <?import javafx.scene.control.ListView?>
+<?import javafx.scene.control.ProgressBar?>
 <?import javafx.scene.control.ScrollPane?>
 <?import javafx.scene.control.TextArea?>
 <?import javafx.scene.control.ToggleButton?>
@@ -55,12 +56,19 @@
         <!-- BANNER DE NOTIFICACIÓN FLOTANTE ANIMADA (PLUG & PLAY TOAST)            -->
         <!-- ===================================================================== -->
         <HBox fx:id="detectionToast" visible="false" managed="false" alignment="CENTER_LEFT" spacing="14.0" styleClass="detection-toast">
-            <HBox fx:id="toastIconBox" alignment="CENTER" styleClass="toast-icon-box" prefWidth="42.0" prefHeight="42.0"/>
-            <VBox spacing="2.0" HBox.hgrow="ALWAYS">
-                <Label fx:id="lblToastTitle" text="¡NUEVO HARDWARE DETECTADO EN CALIENTE!" styleClass="toast-title"/>
+            <HBox fx:id="toastIconBox" alignment="CENTER" styleClass="toast-icon-box" prefWidth="44.0" prefHeight="44.0"/>
+            <VBox spacing="3.0" HBox.hgrow="ALWAYS">
+                <HBox alignment="CENTER_LEFT" spacing="8.0">
+                    <Region fx:id="toastPulseDot" styleClass="toast-pulse-dot"/>
+                    <Label fx:id="lblToastTitle" text="¡NUEVO HARDWARE DETECTADO EN CALIENTE!" styleClass="toast-title"/>
+                    <Region HBox.hgrow="ALWAYS"/>
+                    <Label fx:id="lblToastBadge" text="PnP ONLINE" styleClass="toast-badge"/>
+                </HBox>
                 <Label fx:id="lblToastDevice" text="Dispositivo USB Conectado" styleClass="toast-device"/>
                 <Label fx:id="lblToastDesc" text="Asignando controlador y búfer de E/S en tiempo real..." styleClass="toast-desc"/>
+                <ProgressBar fx:id="toastProgressBar" maxWidth="Infinity" prefHeight="3.0" progress="1.0" styleClass="toast-progress-bar"/>
             </VBox>
+            <Button fx:id="btnDismissToast" text="✕" styleClass="btn-toast-dismiss"/>
         </HBox>
 
         <!-- ===================================================================== -->

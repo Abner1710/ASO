@@ -45,20 +45,29 @@ public class IOSubsystem {
 
         // 2. Teclado Físico (IRQ 1 del estándar PC - Dispositivo de Entrada por Caracteres)
         IODevice keyboard = new IODevice("dev-2", "Teclado Físico (IRQ 1)", "Teclado", 50, true, null, false);
-        keyboard.setExtraInfo("Buffer stdin vacío • Presiona cualquier tecla para capturar");
+        keyboard.setStatus(DeviceStatus.APAGADO);
+        keyboard.setExtraInfo("○ Standby • Esperando controlador de hardware / tecla...");
         this.devices.add(keyboard);
 
         // 3. Mouse / Ratón Físico (IRQ 12 - Dispositivo de Entrada por Eventos)
         IODevice mouse = new IODevice("dev-3", "Mouse / Puntero (IRQ 12)", "Mouse", 50, true, null, false);
-        mouse.setExtraInfo("Coordenadas en espera • Haz click en la ventana para capturar");
+        mouse.setStatus(DeviceStatus.APAGADO);
+        mouse.setExtraInfo("○ Standby • Esperando controlador de hardware / click...");
         this.devices.add(mouse);
 
-        // 4. Puerto USB Host Universal (Reemplaza al monitor para permitir probar cualquier periférico USB)
-        IODevice usbHost = new IODevice("dev-4", "Puerto USB Host (PnP)", "USB", 100, true, null, false);
-        usbHost.setExtraInfo("Listo para Plug & Play • Conecta una USB, celular o periférico");
+        // 4. Controlador de Radio Bluetooth (PnP)
+        IODevice bluetooth = new IODevice("dev-4", "Controlador Bluetooth (PnP)", "Bluetooth", 80, true, null, false);
+        bluetooth.setStatus(DeviceStatus.APAGADO);
+        bluetooth.setExtraInfo("○ Standby • Esperando adaptador de radio Bluetooth...");
+        this.devices.add(bluetooth);
+
+        // 5. Puerto USB Host / Cooler (PnP)
+        IODevice usbHost = new IODevice("dev-5", "Puerto USB Host / Cooler (PnP)", "USB", 100, true, null, false);
+        usbHost.setStatus(DeviceStatus.APAGADO);
+        usbHost.setExtraInfo("○ Standby • Esperando conexión de Cooler, USB o periférico...");
         this.devices.add(usbHost);
 
-        // 5. Escaneo inicial de otros discos/USBs ya conectados al arrancar
+        // 6. Escaneo inicial de otros discos/USBs ya conectados al arrancar
         detectInitialDrives();
 
         log("[Kernel PnP] Subsistema iniciado con hardware físico de la máquina anfitriona.");
@@ -134,6 +143,9 @@ public class IOSubsystem {
     public void handleKeyboardInterrupt(String text, String code) {
         IODevice kbd = findDeviceById("dev-2");
         if (kbd != null) {
+            if (kbd.getStatus() == DeviceStatus.APAGADO) {
+                kbd.setStatus(DeviceStatus.LIBRE);
+            }
             kbd.recordKeyStroke(text, code);
             String keyDesc = (text != null && !text.isEmpty()) ? "'" + text + "'" : code;
             log(String.format("[Hardware IRQ 1] Interrupción de teclado físico: Tecla %s (%s) almacenada en buffer stdin.", keyDesc, code));
@@ -146,6 +158,9 @@ public class IOSubsystem {
     public void handleMouseInterrupt(String button, double x, double y) {
         IODevice mouse = findDeviceById("dev-3");
         if (mouse != null) {
+            if (mouse.getStatus() == DeviceStatus.APAGADO) {
+                mouse.setStatus(DeviceStatus.LIBRE);
+            }
             mouse.recordMouseAction(button, (int) x, (int) y);
             log(String.format("[Hardware IRQ 12] Interrupción de ratón físico: Click %s en posición (%d, %d).",
                     button, (int) x, (int) y));

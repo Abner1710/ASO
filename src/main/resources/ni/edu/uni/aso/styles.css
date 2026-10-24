@@ -331,6 +331,24 @@
     -fx-effect: dropshadow(gaussian, rgba(239, 68, 68, 0.5), 12, 0, 0, 2);
 }
 
+.device-offline {
+    -fx-background-color: #0b111e;
+    -fx-border-color: #26334d;
+    -fx-border-style: dashed;
+    -fx-border-width: 1.5px;
+    -fx-opacity: 0.72;
+}
+
+.device-offline:hover {
+    -fx-background-color: #101828;
+    -fx-opacity: 0.90;
+}
+
+.device-activated {
+    -fx-border-color: #38bdf8 !important;
+    -fx-effect: dropshadow(gaussian, rgba(56, 189, 248, 0.85), 22, 0.3, 0, 0) !important;
+}
+
 /* --------------------------------------------------------------------------
    8. Barras de Progreso Modernas
    -------------------------------------------------------------------------- */
@@ -601,6 +619,62 @@
 .toast-desc {
     -fx-font-size: 11px;
     -fx-text-fill: #94a3b8;
+}
+
+.toast-pulse-dot {
+    -fx-min-width: 8px;
+    -fx-min-height: 8px;
+    -fx-max-width: 8px;
+    -fx-max-height: 8px;
+    -fx-background-radius: 50%;
+}
+
+.dot-connected {
+    -fx-background-color: #10b981;
+    -fx-effect: dropshadow(gaussian, #10b981, 6, 0.4, 0, 0);
+}
+
+.dot-disconnected {
+    -fx-background-color: #ef4444;
+    -fx-effect: dropshadow(gaussian, #ef4444, 6, 0.4, 0, 0);
+}
+
+.toast-badge {
+    -fx-font-size: 10px;
+    -fx-font-weight: bold;
+    -fx-padding: 2px 7px;
+    -fx-background-radius: 4px;
+}
+
+.toast-progress-bar {
+    -fx-background-color: transparent;
+    -fx-padding: 0;
+}
+
+.toast-progress-bar .track {
+    -fx-background-color: rgba(255, 255, 255, 0.08);
+    -fx-background-radius: 2px;
+}
+
+.toast-progress-bar .bar {
+    -fx-background-radius: 2px;
+    -fx-padding: 1.5px;
+}
+
+.btn-toast-dismiss {
+    -fx-background-color: rgba(255, 255, 255, 0.06);
+    -fx-text-fill: #94a3b8;
+    -fx-font-size: 12px;
+    -fx-font-weight: bold;
+    -fx-background-radius: 6px;
+    -fx-cursor: hand;
+    -fx-padding: 4px 8px;
+    -fx-border-color: transparent;
+}
+
+.btn-toast-dismiss:hover {
+    -fx-background-color: rgba(239, 68, 68, 0.2);
+    -fx-text-fill: #ef4444;
 }
 
 .field-desc {

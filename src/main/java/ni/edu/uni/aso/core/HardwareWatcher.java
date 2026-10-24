@@ -7,6 +7,7 @@ import java.io.BufferedReader;
 import java.io.File;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
+import java.util.Base64;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
@@ -18,8 +19,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * Implementa la detección de eventos Plug & Play (conexión y desconexión en caliente de USBs, discos y periféricos externos).
  * Realiza escaneo dual:
  * 1. Ultrarrápido (0.001s) para almacenamiento y memorias USB mediante File.listRoots().
- * 2. Asíncrono en segundo plano para cualquier periférico USB (mouse USB, teclado externo, celular, gamepad, etc.)
- *    mediante la API de dispositivos PnP de Windows.
+ * 2. Asíncrono en segundo plano para periféricos externos (mouse USB, teclado, cooler, bluetooth, etc.)
+ *    mediante la API de dispositivos PnP de Windows con Base64 script execution.
  */
 public class HardwareWatcher {
 
@@ -54,13 +55,13 @@ public class HardwareWatcher {
 
     /**
      * Ejecuta una verificación del estado del hardware físico.
-     * Combina escaneo instantáneo de unidades de disco con escaneo asíncrono de periféricos USB.
+     * Combina escaneo instantáneo de unidades de disco con escaneo asíncrono de periféricos USB y PnP.
      */
     public void scan() {
         // 1. Escaneo ultrarrápido de unidades de almacenamiento (Memorias USB / Discos)
         scanDriveRoots();
 
-        // 2. Escaneo en segundo plano de periféricos USB universales
+        // 2. Escaneo en segundo plano de periféricos USB y PnP universales
         if (isPnpScanning.compareAndSet(false, true)) {
             Thread pnpThread = new Thread(this::scanWindowsUsbDevices, "USB-PnP-Scanner");
             pnpThread.setDaemon(true);
@@ -103,16 +104,25 @@ public class HardwareWatcher {
     }
 
     /**
-     * Escanea dispositivos USB conectados en Windows mediante PowerShell / WMI PnP.
+     * Escanea dispositivos conectados en Windows mediante PowerShell y PnP con codificación Base64.
      */
     private void scanWindowsUsbDevices() {
         try {
-            // Comando que extrae FriendlyName e InstanceId de dispositivos USB presentes
-            String command = "powershell -NoProfile -ExecutionPolicy Bypass -Command " +
-                    "\"Get-PnpDevice -PresentOnly | Where-Object { $_.InstanceId -like 'USB*' -and $_.FriendlyName -notmatch 'Host|Root|Concentrador|Composite|Compuesto|Standard' } | " +
-                    "ForEach-Object { $_.InstanceId + ':::' + $_.FriendlyName + ':::' + $_.Class }\"";
+            // Script de PowerShell optimizado sin problemas de comillas o variables
+            String psScript = "$ProgressPreference = 'SilentlyContinue'; " +
+                    "Get-PnpDevice -PresentOnly | Where-Object { " +
+                    "  ((($_.Class -in @('Mouse','Keyboard','Bluetooth','USB','DiskDrive','Ports')) -or ($_.InstanceId -like 'USB*')) -and " +
+                    "   ($_.FriendlyName -and $_.FriendlyName -notmatch 'Root|Concentrador|Composite|Compuesto|Host controller|controladora host|eXtensible|Generador|Enumerador|Servicio|Software|Audio|TDI|AVRCP|proveedor|consumidor|GPIO|Filter|I2C|Controlador del sistema|Configuration Device|banda lateral|convertido')) " +
+                    "} | ForEach-Object { " +
+                    "  $_.InstanceId + ':::' + $_.FriendlyName + ':::' + $_.Class " +
+                    "}";
 
-            Process process = Runtime.getRuntime().exec(command);
+            byte[] scriptBytes = psScript.getBytes(StandardCharsets.UTF_16LE);
+            String encodedCommand = Base64.getEncoder().encodeToString(scriptBytes);
+
+            ProcessBuilder pb = new ProcessBuilder("powershell.exe", "-NoProfile", "-ExecutionPolicy", "Bypass", "-EncodedCommand", encodedCommand);
+            Process process = pb.start();
+
             Set<String> currentPnpIds = new HashSet<>();
 
             try (BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream(), StandardCharsets.UTF_8))) {
@@ -131,9 +141,9 @@ public class HardwareWatcher {
 
                         currentPnpIds.add(instanceId);
 
-                        // Si es un dispositivo nuevo que antes no estaba
+                        // Si es un dispositivo nuevo que antes no estaba registrado en memoria
                         if (!knownPnpDevices.containsKey(instanceId)) {
-                            // Evitar registrar tarjetas duplicadas si una sola entidad física expone múltiples interfaces HID
+                            // Evitar tarjetas duplicadas si una sola entidad física expone múltiples interfaces HID idénticas
                             boolean isDuplicate = false;
                             for (String existingName : knownPnpDevices.values()) {
                                 if (existingName.equalsIgnoreCase(friendlyName)) {
@@ -146,12 +156,24 @@ public class HardwareWatcher {
 
                             if (!isDuplicate) {
                                 String devId = "dev-pnp-" + Math.abs(friendlyName.hashCode() % 10000);
-                                IODevice usbDev = new IODevice(devId, friendlyName, "USB", 120, true, null, true);
-                                usbDev.setExtraInfo("Clase: " + devClass + " • Bus USB 2.0/3.0 PnP");
+                                String assignedType = "USB";
+                                String lowerName = friendlyName.toLowerCase();
+                                if (devClass.equalsIgnoreCase("Keyboard") || lowerName.contains("teclado") || lowerName.contains("keyboard")) {
+                                    assignedType = "Teclado";
+                                } else if (devClass.equalsIgnoreCase("Mouse") || lowerName.contains("mouse") || lowerName.contains("ratón") || lowerName.contains("touchpad")) {
+                                    assignedType = "Mouse";
+                                } else if (devClass.equalsIgnoreCase("Bluetooth") || lowerName.contains("bluetooth")) {
+                                    assignedType = "Bluetooth";
+                                } else if (devClass.equalsIgnoreCase("DiskDrive") || lowerName.contains("disk") || lowerName.contains("disco")) {
+                                    assignedType = "Disco";
+                                }
+
+                                IODevice pnpDev = new IODevice(devId, friendlyName, assignedType, 120, true, null, true);
+                                pnpDev.setExtraInfo("Clase: " + devClass + " • Bus PnP en línea");
 
                                 boolean isHotplug = !isInitialPnpScan.get();
                                 if (listener != null) {
-                                    Platform.runLater(() -> listener.onDeviceConnected(usbDev, isHotplug));
+                                    Platform.runLater(() -> listener.onDeviceConnected(pnpDev, isHotplug));
                                 }
                             }
                         }
@@ -162,7 +184,7 @@ public class HardwareWatcher {
             process.waitFor();
             isInitialPnpScan.set(false);
 
-            // Detectar desconexión de dispositivos PnP
+            // Detectar desconexión de dispositivos PnP retirados del sistema
             Set<String> disconnectedPnp = new HashSet<>(knownPnpDevices.keySet());
             disconnectedPnp.removeAll(currentPnpIds);
 
