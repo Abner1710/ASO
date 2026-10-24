@@ -133,16 +133,26 @@ public class HardwareWatcher {
 
                         // Si es un dispositivo nuevo que antes no estaba
                         if (!knownPnpDevices.containsKey(instanceId)) {
+                            // Evitar registrar tarjetas duplicadas si una sola entidad física expone múltiples interfaces HID
+                            boolean isDuplicate = false;
+                            for (String existingName : knownPnpDevices.values()) {
+                                if (existingName.equalsIgnoreCase(friendlyName)) {
+                                    isDuplicate = true;
+                                    break;
+                                }
+                            }
+
                             knownPnpDevices.put(instanceId, friendlyName);
 
-                            // Omitir si es solo el disco C o similar que ya manejamos
-                            String devId = "dev-pnp-" + Math.abs(instanceId.hashCode() % 10000);
-                            IODevice usbDev = new IODevice(devId, friendlyName, "USB", 120, true, null, true);
-                            usbDev.setExtraInfo("Clase: " + devClass + " • Bus USB 2.0/3.0 PnP");
+                            if (!isDuplicate) {
+                                String devId = "dev-pnp-" + Math.abs(friendlyName.hashCode() % 10000);
+                                IODevice usbDev = new IODevice(devId, friendlyName, "USB", 120, true, null, true);
+                                usbDev.setExtraInfo("Clase: " + devClass + " • Bus USB 2.0/3.0 PnP");
 
-                            boolean isHotplug = !isInitialPnpScan.get();
-                            if (listener != null) {
-                                Platform.runLater(() -> listener.onDeviceConnected(usbDev, isHotplug));
+                                boolean isHotplug = !isInitialPnpScan.get();
+                                if (listener != null) {
+                                    Platform.runLater(() -> listener.onDeviceConnected(usbDev, isHotplug));
+                                }
                             }
                         }
                     }
@@ -158,9 +168,12 @@ public class HardwareWatcher {
 
             for (String disId : disconnectedPnp) {
                 String name = knownPnpDevices.remove(disId);
-                String devId = "dev-pnp-" + Math.abs(disId.hashCode() % 10000);
-                if (listener != null) {
-                    Platform.runLater(() -> listener.onDeviceDisconnected(devId, name));
+                // Si ya no queda ninguna interfaz asociada a este dispositivo, notificar desconexión
+                if (name != null && !knownPnpDevices.containsValue(name)) {
+                    String devId = "dev-pnp-" + Math.abs(name.hashCode() % 10000);
+                    if (listener != null) {
+                        Platform.runLater(() -> listener.onDeviceDisconnected(devId, name));
+                    }
                 }
             }
 

@@ -630,7 +630,7 @@
 }
 
 /* --------------------------------------------------------------------------
-   13. ScrollPane Principal Adaptativo
+   13. ScrollPane Principal Adaptativo & ScrollPane de Hardware
    -------------------------------------------------------------------------- */
 .main-scroll-pane {
     -fx-background-color: #090d16;
@@ -646,4 +646,20 @@
 
 .main-scroll-pane .corner {
     -fx-background-color: #090d16;
+}
+
+.device-scroll-pane {
+    -fx-background-color: transparent;
+    -fx-background: transparent;
+    -fx-border-color: transparent;
+    -fx-border-width: 0;
+    -fx-padding: 0;
+}
+
+.device-scroll-pane > .viewport {
+    -fx-background-color: transparent;
+}
+
+.device-scroll-pane .corner {
+    -fx-background-color: transparent;
 }

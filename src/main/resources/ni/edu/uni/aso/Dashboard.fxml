@@ -187,18 +187,22 @@
             </VBox>
 
             <!-- Columna 3: Controladores de Hardware (Físicos y PnP) -->
-            <VBox HBox.hgrow="ALWAYS" styleClass="column-card" spacing="12.0">
+            <VBox HBox.hgrow="ALWAYS" styleClass="column-card" spacing="10.0">
                 <HBox alignment="CENTER_LEFT" spacing="8.0" styleClass="column-header">
                     <Label text="Controladores de Hardware" styleClass="column-title"/>
                     <Region HBox.hgrow="ALWAYS"/>
                     <Label text="PLUG &amp; PLAY EN VIVO" styleClass="section-tag, tag-pnp"/>
                 </HBox>
 
-                <VBox fx:id="devicesContainer"
-                      VBox.vgrow="ALWAYS"
-                      spacing="9.0"
-                      minHeight="220.0"
-                      styleClass="devices-container"/>
+                <ScrollPane fitToWidth="true"
+                            hbarPolicy="NEVER"
+                            vbarPolicy="AS_NEEDED"
+                            VBox.vgrow="ALWAYS"
+                            styleClass="device-scroll-pane">
+                    <VBox fx:id="devicesContainer"
+                          spacing="8.0"
+                          styleClass="devices-container"/>
+                </ScrollPane>
             </VBox>
         </HBox>
 
