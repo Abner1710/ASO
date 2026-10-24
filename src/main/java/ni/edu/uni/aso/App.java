@@ -2,8 +2,10 @@ package ni.edu.uni.aso;
 
 import javafx.application.Application;
 import javafx.fxml.FXMLLoader;
+import javafx.geometry.Rectangle2D;
 import javafx.scene.Parent;
 import javafx.scene.Scene;
+import javafx.stage.Screen;
 import javafx.stage.Stage;
 
 import java.io.IOException;
@@ -11,7 +13,8 @@ import java.net.URL;
 
 /**
  * Punto de entrada principal de la aplicación JavaFX.
- * Inicializa y carga la vista Dashboard.fxml junto con su hoja de estilos.
+ * Ajusta de forma adaptativa las dimensiones iniciales a cualquier resolución de pantalla
+ * (1080p, laptops de 1366x768 o 1536x864 con escala DPI, proyectores y monitores 4K).
  */
 public class App extends Application {
 
@@ -25,7 +28,12 @@ public class App extends Application {
         FXMLLoader fxmlLoader = new FXMLLoader(fxmlLocation);
         Parent root = fxmlLoader.load();
 
-        Scene scene = new Scene(root, 1180, 840);
+        // Calcular dimensiones visuales útiles del monitor (excluyendo la barra de tareas de Windows)
+        Rectangle2D visualBounds = Screen.getPrimary().getVisualBounds();
+        double initialWidth = Math.min(1240, visualBounds.getWidth() * 0.94);
+        double initialHeight = Math.min(820, visualBounds.getHeight() * 0.92);
+
+        Scene scene = new Scene(root, initialWidth, initialHeight);
 
         URL cssLocation = App.class.getResource("styles.css");
         if (cssLocation != null) {
@@ -33,8 +41,8 @@ public class App extends Application {
         }
 
         stage.setTitle("Simulador de Entrada/Salida - Arquitectura de SO [UNI DACTIC]");
-        stage.setMinWidth(1080);
-        stage.setMinHeight(750);
+        stage.setMinWidth(850);
+        stage.setMinHeight(480);
         stage.setScene(scene);
         stage.show();
     }

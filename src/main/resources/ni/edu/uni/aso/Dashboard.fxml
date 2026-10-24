@@ -5,216 +5,226 @@
 <?import javafx.scene.control.ComboBox?>
 <?import javafx.scene.control.Label?>
 <?import javafx.scene.control.ListView?>
+<?import javafx.scene.control.ScrollPane?>
 <?import javafx.scene.control.TextArea?>
 <?import javafx.scene.control.ToggleButton?>
 <?import javafx.scene.layout.HBox?>
 <?import javafx.scene.layout.Region?>
 <?import javafx.scene.layout.VBox?>
 
-<VBox xmlns="http://javafx.com/javafx/17"
-      xmlns:fx="http://javafx.com/fxml/1"
-      fx:controller="ni.edu.uni.aso.ui.DashboardController"
-      id="mainContainer"
-      fx:id="mainContainer"
-      styleClass="root-pane"
-      stylesheets="@styles.css"
-      spacing="14.0"
-      prefWidth="1200.0"
-      prefHeight="860.0">
-    <padding>
-        <Insets top="16.0" right="20.0" bottom="16.0" left="20.0"/>
-    </padding>
+<ScrollPane xmlns="http://javafx.com/javafx/17"
+            xmlns:fx="http://javafx.com/fxml/1"
+            fx:controller="ni.edu.uni.aso.ui.DashboardController"
+            fitToWidth="true"
+            fitToHeight="true"
+            hbarPolicy="AS_NEEDED"
+            vbarPolicy="AS_NEEDED"
+            styleClass="main-scroll-pane"
+            stylesheets="@styles.css">
 
-    <!-- ===================================================================== -->
-    <!-- ENCABEZADO SUPERIOR: MARCA INSTITUCIONAL Y ESTADO DEL KERNEL           -->
-    <!-- ===================================================================== -->
-    <HBox alignment="CENTER_LEFT" spacing="12.0" styleClass="app-header">
-        <VBox spacing="3.0">
-            <HBox alignment="CENTER_LEFT" spacing="8.0">
-                <Label text="UNI • ARQUITECTURA Y SISTEMAS OPERATIVOS" styleClass="header-badge"/>
-                <Label text="GRUPO NO. 14" styleClass="header-group-badge"/>
-                <Label text="HARDWARE BRIDGE v2.0" styleClass="header-pnp-badge"/>
+    <VBox id="mainContainer"
+          fx:id="mainContainer"
+          styleClass="root-pane"
+          spacing="14.0"
+          minWidth="960.0">
+        <padding>
+            <Insets top="16.0" right="20.0" bottom="24.0" left="20.0"/>
+        </padding>
+
+        <!-- ===================================================================== -->
+        <!-- ENCABEZADO SUPERIOR: MARCA INSTITUCIONAL Y ESTADO DEL KERNEL           -->
+        <!-- ===================================================================== -->
+        <HBox alignment="CENTER_LEFT" spacing="12.0" styleClass="app-header">
+            <VBox spacing="3.0">
+                <HBox alignment="CENTER_LEFT" spacing="8.0">
+                    <Label text="UNI • ARQUITECTURA Y SISTEMAS OPERATIVOS" styleClass="header-badge"/>
+                    <Label text="GRUPO NO. 14" styleClass="header-group-badge"/>
+                    <Label text="HARDWARE BRIDGE v2.0" styleClass="header-pnp-badge"/>
+                </HBox>
+                <Label text="Simulador del Subsistema de E/S con Conexión a Hardware Real (Plug &amp; Play)" styleClass="header-title"/>
+            </VBox>
+            <Region HBox.hgrow="ALWAYS"/>
+            <HBox alignment="CENTER" spacing="8.0" styleClass="kernel-status-pill">
+                <Region styleClass="pulse-dot"/>
+                <Label text="HARDWARE ACTIVO" styleClass="kernel-status-text"/>
+                <Label text="| PnP Polling: 1.0s" styleClass="kernel-status-clock"/>
             </HBox>
-            <Label text="Simulador del Subsistema de E/S con Conexión a Hardware Real (Plug &amp; Play)" styleClass="header-title"/>
-        </VBox>
-        <Region HBox.hgrow="ALWAYS"/>
-        <HBox alignment="CENTER" spacing="8.0" styleClass="kernel-status-pill">
-            <Region styleClass="pulse-dot"/>
-            <Label text="HARDWARE ACTIVO" styleClass="kernel-status-text"/>
-            <Label text="| PnP Polling: 1.0s" styleClass="kernel-status-clock"/>
         </HBox>
-    </HBox>
 
-    <!-- ===================================================================== -->
-    <!-- BANNER DE NOTIFICACIÓN FLOTANTE ANIMADA (PLUG & PLAY TOAST)            -->
-    <!-- ===================================================================== -->
-    <HBox fx:id="detectionToast" visible="false" managed="false" alignment="CENTER_LEFT" spacing="14.0" styleClass="detection-toast">
-        <HBox fx:id="toastIconBox" alignment="CENTER" styleClass="toast-icon-box" prefWidth="42.0" prefHeight="42.0"/>
-        <VBox spacing="2.0" HBox.hgrow="ALWAYS">
-            <Label fx:id="lblToastTitle" text="¡NUEVO HARDWARE DETECTADO EN CALIENTE!" styleClass="toast-title"/>
-            <Label fx:id="lblToastDevice" text="Dispositivo USB Conectado" styleClass="toast-device"/>
-            <Label fx:id="lblToastDesc" text="Asignando controlador y búfer de E/S en tiempo real..." styleClass="toast-desc"/>
-        </VBox>
-    </HBox>
-
-    <!-- ===================================================================== -->
-    <!-- PANEL DE MÉTRICAS GLOBALES (KPI CARDS EN TIEMPO REAL)                  -->
-    <!-- ===================================================================== -->
-    <HBox spacing="14.0" styleClass="kpi-container">
-        <!-- KPI 1: Peticiones Totales -->
-        <HBox HBox.hgrow="ALWAYS" styleClass="kpi-card" alignment="CENTER_LEFT" spacing="12.0">
-            <VBox styleClass="kpi-icon-box, kpi-icon-blue" alignment="CENTER" fx:id="boxKpi1"/>
-            <VBox spacing="2.0">
-                <Label text="PETICIONES EMITIDAS" styleClass="kpi-subtitle"/>
-                <Label fx:id="lblTotalRequests" text="0" styleClass="kpi-value"/>
+        <!-- ===================================================================== -->
+        <!-- BANNER DE NOTIFICACIÓN FLOTANTE ANIMADA (PLUG & PLAY TOAST)            -->
+        <!-- ===================================================================== -->
+        <HBox fx:id="detectionToast" visible="false" managed="false" alignment="CENTER_LEFT" spacing="14.0" styleClass="detection-toast">
+            <HBox fx:id="toastIconBox" alignment="CENTER" styleClass="toast-icon-box" prefWidth="42.0" prefHeight="42.0"/>
+            <VBox spacing="2.0" HBox.hgrow="ALWAYS">
+                <Label fx:id="lblToastTitle" text="¡NUEVO HARDWARE DETECTADO EN CALIENTE!" styleClass="toast-title"/>
+                <Label fx:id="lblToastDevice" text="Dispositivo USB Conectado" styleClass="toast-device"/>
+                <Label fx:id="lblToastDesc" text="Asignando controlador y búfer de E/S en tiempo real..." styleClass="toast-desc"/>
             </VBox>
         </HBox>
 
-        <!-- KPI 2: En Cola de Espera -->
-        <HBox HBox.hgrow="ALWAYS" styleClass="kpi-card" alignment="CENTER_LEFT" spacing="12.0">
-            <VBox styleClass="kpi-icon-box, kpi-icon-amber" alignment="CENTER" fx:id="boxKpi2"/>
-            <VBox spacing="2.0">
-                <Label text="EN COLA FIFO" styleClass="kpi-subtitle"/>
-                <Label fx:id="lblQueueCount" text="0" styleClass="kpi-value"/>
-            </VBox>
-        </HBox>
-
-        <!-- KPI 3: Hardware Físico Detectado -->
-        <HBox HBox.hgrow="ALWAYS" styleClass="kpi-card" alignment="CENTER_LEFT" spacing="12.0">
-            <VBox styleClass="kpi-icon-box, kpi-icon-emerald" alignment="CENTER" fx:id="boxKpi3"/>
-            <VBox spacing="2.0">
-                <Label text="HARDWARE DETECTADO" styleClass="kpi-subtitle"/>
-                <Label fx:id="lblActiveDevices" text="0 Activos" styleClass="kpi-value"/>
-            </VBox>
-        </HBox>
-
-        <!-- KPI 4: Stress Test -->
-        <HBox HBox.hgrow="ALWAYS" styleClass="kpi-card" alignment="CENTER_LEFT" spacing="12.0">
-            <VBox styleClass="kpi-icon-box, kpi-icon-purple" alignment="CENTER" fx:id="boxKpi4"/>
-            <VBox spacing="2.0">
-                <Label text="STRESS TEST" styleClass="kpi-subtitle"/>
-                <Label fx:id="lblStressStatus" text="INACTIVO" styleClass="kpi-value, kpi-status-off"/>
-            </VBox>
-        </HBox>
-    </HBox>
-
-    <!-- ===================================================================== -->
-    <!-- FILA PRINCIPAL: 3 COLUMNAS DEL SUBSISTEMA                            -->
-    <!-- ===================================================================== -->
-    <HBox VBox.vgrow="ALWAYS" spacing="16.0">
-        <!-- Columna 1: Generador de Procesos / Syscalls y Selector de Hardware -->
-        <VBox prefWidth="340.0" maxWidth="380.0" styleClass="column-card" spacing="12.0">
-            <HBox alignment="CENTER_LEFT" spacing="8.0" styleClass="column-header">
-                <Label text="Operaciones de Hardware" styleClass="column-title"/>
-                <Region HBox.hgrow="ALWAYS"/>
-                <Label text="E/S REAL" styleClass="section-tag"/>
-            </HBox>
-
-            <VBox spacing="9.0" VBox.vgrow="ALWAYS" alignment="TOP_CENTER">
-                <!-- Selector de dispositivo objetivo -->
-                <VBox spacing="3.0" maxWidth="Infinity">
-                    <Label text="Dispositivo Destino de E/S:" styleClass="field-label"/>
-                    <ComboBox fx:id="cmbTargetDevice" maxWidth="Infinity" styleClass="custom-combobox"/>
-                    <Label fx:id="lblDeviceContextDesc" text="Disco: Lectura de archivos y volcado con fsync()" wrapText="true" styleClass="field-desc"/>
+        <!-- ===================================================================== -->
+        <!-- PANEL DE MÉTRICAS GLOBALES (KPI CARDS EN TIEMPO REAL)                  -->
+        <!-- ===================================================================== -->
+        <HBox spacing="14.0" styleClass="kpi-container">
+            <!-- KPI 1: Peticiones Totales -->
+            <HBox HBox.hgrow="ALWAYS" styleClass="kpi-card" alignment="CENTER_LEFT" spacing="12.0">
+                <VBox styleClass="kpi-icon-box, kpi-icon-blue" alignment="CENTER" fx:id="boxKpi1"/>
+                <VBox spacing="2.0">
+                    <Label text="PETICIONES EMITIDAS" styleClass="kpi-subtitle"/>
+                    <Label fx:id="lblTotalRequests" text="0" styleClass="kpi-value"/>
                 </VBox>
+            </HBox>
 
-                <!-- Botón Lectura Contextualizada -->
-                <Button fx:id="btnReadRequest"
-                        text="Generar Petición (Lectura)"
-                        maxWidth="Infinity"
-                        prefHeight="46.0"
-                        styleClass="btn-action, btn-read"/>
+            <!-- KPI 2: En Cola de Espera -->
+            <HBox HBox.hgrow="ALWAYS" styleClass="kpi-card" alignment="CENTER_LEFT" spacing="12.0">
+                <VBox styleClass="kpi-icon-box, kpi-icon-amber" alignment="CENTER" fx:id="boxKpi2"/>
+                <VBox spacing="2.0">
+                    <Label text="EN COLA FIFO" styleClass="kpi-subtitle"/>
+                    <Label fx:id="lblQueueCount" text="0" styleClass="kpi-value"/>
+                </VBox>
+            </HBox>
 
-                <!-- Botón Escritura Contextualizada -->
-                <Button fx:id="btnWriteRequest"
-                        text="Generar Petición (Escritura fsync)"
-                        maxWidth="Infinity"
-                        prefHeight="46.0"
-                        styleClass="btn-action, btn-write"/>
+            <!-- KPI 3: Hardware Físico Detectado -->
+            <HBox HBox.hgrow="ALWAYS" styleClass="kpi-card" alignment="CENTER_LEFT" spacing="12.0">
+                <VBox styleClass="kpi-icon-box, kpi-icon-emerald" alignment="CENTER" fx:id="boxKpi3"/>
+                <VBox spacing="2.0">
+                    <Label text="HARDWARE DETECTADO" styleClass="kpi-subtitle"/>
+                    <Label fx:id="lblActiveDevices" text="0 Activos" styleClass="kpi-value"/>
+                </VBox>
+            </HBox>
 
-                <!-- Toggle Stress Test -->
-                <ToggleButton fx:id="btnStressTest"
-                              id="btnStressTest"
-                              text="Activar Stress Test (Auto)"
-                              maxWidth="Infinity"
-                              prefHeight="40.0"
-                              styleClass="btn-stress"/>
+            <!-- KPI 4: Stress Test -->
+            <HBox HBox.hgrow="ALWAYS" styleClass="kpi-card" alignment="CENTER_LEFT" spacing="12.0">
+                <VBox styleClass="kpi-icon-box, kpi-icon-purple" alignment="CENTER" fx:id="boxKpi4"/>
+                <VBox spacing="2.0">
+                    <Label text="STRESS TEST" styleClass="kpi-subtitle"/>
+                    <Label fx:id="lblStressStatus" text="INACTIVO" styleClass="kpi-value, kpi-status-off"/>
+                </VBox>
+            </HBox>
+        </HBox>
 
-                <!-- Botones de Acción PnP -->
-                <HBox spacing="8.0" maxWidth="Infinity">
-                    <Button fx:id="btnRescanHardware"
-                            text="Escanear USB PnP"
-                            HBox.hgrow="ALWAYS"
-                            maxWidth="Infinity"
-                            prefHeight="36.0"
-                            styleClass="btn-rescan"/>
-                    <Button fx:id="btnSimulatePnp"
-                            text="Demo Conexión"
-                            HBox.hgrow="ALWAYS"
-                            maxWidth="Infinity"
-                            prefHeight="36.0"
-                            styleClass="btn-demo-pnp"/>
+        <!-- ===================================================================== -->
+        <!-- FILA PRINCIPAL: 3 COLUMNAS DEL SUBSISTEMA                            -->
+        <!-- ===================================================================== -->
+        <HBox VBox.vgrow="ALWAYS" spacing="16.0" minHeight="380.0">
+            <!-- Columna 1: Generador de Procesos / Syscalls y Selector de Hardware -->
+            <VBox prefWidth="340.0" maxWidth="380.0" styleClass="column-card" spacing="12.0">
+                <HBox alignment="CENTER_LEFT" spacing="8.0" styleClass="column-header">
+                    <Label text="Operaciones de Hardware" styleClass="column-title"/>
+                    <Region HBox.hgrow="ALWAYS"/>
+                    <Label text="E/S REAL" styleClass="section-tag"/>
                 </HBox>
 
-                <!-- Tarjeta interactiva de Interrupciones en Vivo (IRQ 1 & 12) -->
-                <VBox styleClass="live-irq-box" spacing="4.0">
-                    <Label text="⚡ Entrada en Tiempo Real (IRQ 1 &amp; 12):" styleClass="live-irq-title"/>
-                    <Label text="• Presiona teclas físicas para generar IRQ 1 (Teclado)." styleClass="info-text"/>
-                    <Label text="• Haz click en la ventana para generar IRQ 12 (Mouse)." styleClass="info-text"/>
-                    <Label text="• Conecta una USB o celular para Plug &amp; Play automático." styleClass="info-text-highlight"/>
+                <VBox spacing="9.0" VBox.vgrow="ALWAYS" alignment="TOP_CENTER">
+                    <!-- Selector de dispositivo objetivo -->
+                    <VBox spacing="3.0" maxWidth="Infinity">
+                        <Label text="Dispositivo Destino de E/S:" styleClass="field-label"/>
+                        <ComboBox fx:id="cmbTargetDevice" maxWidth="Infinity" styleClass="custom-combobox"/>
+                        <Label fx:id="lblDeviceContextDesc" text="Disco: Lectura de archivos y volcado con fsync()" wrapText="true" styleClass="field-desc"/>
+                    </VBox>
+
+                    <!-- Botón Lectura Contextualizada -->
+                    <Button fx:id="btnReadRequest"
+                            text="Generar Petición (Lectura)"
+                            maxWidth="Infinity"
+                            prefHeight="46.0"
+                            styleClass="btn-action, btn-read"/>
+
+                    <!-- Botón Escritura Contextualizada -->
+                    <Button fx:id="btnWriteRequest"
+                            text="Generar Petición (Escritura fsync)"
+                            maxWidth="Infinity"
+                            prefHeight="46.0"
+                            styleClass="btn-action, btn-write"/>
+
+                    <!-- Toggle Stress Test -->
+                    <ToggleButton fx:id="btnStressTest"
+                                  id="btnStressTest"
+                                  text="Activar Stress Test (Auto)"
+                                  maxWidth="Infinity"
+                                  prefHeight="40.0"
+                                  styleClass="btn-stress"/>
+
+                    <!-- Botones de Acción PnP -->
+                    <HBox spacing="8.0" maxWidth="Infinity">
+                        <Button fx:id="btnRescanHardware"
+                                text="Escanear USB PnP"
+                                HBox.hgrow="ALWAYS"
+                                maxWidth="Infinity"
+                                prefHeight="36.0"
+                                styleClass="btn-rescan"/>
+                        <Button fx:id="btnSimulatePnp"
+                                text="Demo Conexión"
+                                HBox.hgrow="ALWAYS"
+                                maxWidth="Infinity"
+                                prefHeight="36.0"
+                                styleClass="btn-demo-pnp"/>
+                    </HBox>
+
+                    <!-- Tarjeta interactiva de Interrupciones en Vivo (IRQ 1 & 12) -->
+                    <VBox styleClass="live-irq-box" spacing="4.0">
+                        <Label text="⚡ Entrada en Tiempo Real (IRQ 1 &amp; 12):" styleClass="live-irq-title"/>
+                        <Label text="• Presiona teclas físicas para generar IRQ 1 (Teclado)." styleClass="info-text"/>
+                        <Label text="• Haz click en la ventana para generar IRQ 12 (Mouse)." styleClass="info-text"/>
+                        <Label text="• Conecta una USB o celular para Plug &amp; Play automático." styleClass="info-text-highlight"/>
+                    </VBox>
                 </VBox>
             </VBox>
-        </VBox>
 
-        <!-- Columna 2: Gestor de Colas (FIFO Wait Queue) -->
-        <VBox HBox.hgrow="ALWAYS" styleClass="column-card" spacing="12.0">
-            <HBox alignment="CENTER_LEFT" spacing="8.0" styleClass="column-header">
-                <Label text="Gestor de Colas" styleClass="column-title"/>
-                <Region HBox.hgrow="ALWAYS"/>
-                <Label text="FIFO WAIT QUEUE" styleClass="section-tag"/>
-            </HBox>
+            <!-- Columna 2: Gestor de Colas (FIFO Wait Queue) -->
+            <VBox HBox.hgrow="ALWAYS" styleClass="column-card" spacing="12.0">
+                <HBox alignment="CENTER_LEFT" spacing="8.0" styleClass="column-header">
+                    <Label text="Gestor de Colas" styleClass="column-title"/>
+                    <Region HBox.hgrow="ALWAYS"/>
+                    <Label text="FIFO WAIT QUEUE" styleClass="section-tag"/>
+                </HBox>
 
-            <ListView fx:id="queueListView"
+                <ListView fx:id="queueListView"
+                          VBox.vgrow="ALWAYS"
+                          minHeight="220.0"
+                          styleClass="custom-list-view"/>
+            </VBox>
+
+            <!-- Columna 3: Controladores de Hardware (Físicos y PnP) -->
+            <VBox HBox.hgrow="ALWAYS" styleClass="column-card" spacing="12.0">
+                <HBox alignment="CENTER_LEFT" spacing="8.0" styleClass="column-header">
+                    <Label text="Controladores de Hardware" styleClass="column-title"/>
+                    <Region HBox.hgrow="ALWAYS"/>
+                    <Label text="PLUG &amp; PLAY EN VIVO" styleClass="section-tag, tag-pnp"/>
+                </HBox>
+
+                <VBox fx:id="devicesContainer"
                       VBox.vgrow="ALWAYS"
-                      styleClass="custom-list-view"/>
-        </VBox>
-
-        <!-- Columna 3: Controladores de Hardware (Físicos y PnP) -->
-        <VBox HBox.hgrow="ALWAYS" styleClass="column-card" spacing="12.0">
-            <HBox alignment="CENTER_LEFT" spacing="8.0" styleClass="column-header">
-                <Label text="Controladores de Hardware" styleClass="column-title"/>
-                <Region HBox.hgrow="ALWAYS"/>
-                <Label text="PLUG &amp; PLAY EN VIVO" styleClass="section-tag, tag-pnp"/>
-            </HBox>
-
-            <VBox fx:id="devicesContainer"
-                  VBox.vgrow="ALWAYS"
-                  spacing="9.0"
-                  styleClass="devices-container"/>
-        </VBox>
-    </HBox>
-
-    <!-- ===================================================================== -->
-    <!-- FILA INFERIOR: CONSOLA DE TELEMETRÍA (DEVTOOLS / CYBERPUNK TERMINAL)   -->
-    <!-- ===================================================================== -->
-    <VBox styleClass="terminal-card" spacing="0">
-        <!-- Barra de herramientas de la terminal -->
-        <HBox alignment="CENTER_LEFT" spacing="10.0" styleClass="terminal-header">
-            <HBox spacing="6.0" alignment="CENTER_LEFT">
-                <Region styleClass="window-dot, dot-red"/>
-                <Region styleClass="window-dot, dot-yellow"/>
-                <Region styleClass="window-dot, dot-green"/>
-            </HBox>
-            <Label text="CONSOLE // Telemetría de Kernel, Eventos PnP de Hardware &amp; Métricas de fsync()" styleClass="terminal-title"/>
-            <Region HBox.hgrow="ALWAYS"/>
-            <Button fx:id="btnClearLogs" text="Limpiar Consola" styleClass="btn-terminal-action"/>
+                      spacing="9.0"
+                      minHeight="220.0"
+                      styleClass="devices-container"/>
+            </VBox>
         </HBox>
 
-        <!-- Área de texto del log -->
-        <TextArea fx:id="logConsole"
-                  id="logConsole"
-                  editable="false"
-                  prefHeight="135.0"
-                  wrapText="true"/>
+        <!-- ===================================================================== -->
+        <!-- FILA INFERIOR: CONSOLA DE TELEMETRÍA (DEVTOOLS / CYBERPUNK TERMINAL)   -->
+        <!-- ===================================================================== -->
+        <VBox styleClass="terminal-card" spacing="0" minHeight="140.0">
+            <!-- Barra de herramientas de la terminal -->
+            <HBox alignment="CENTER_LEFT" spacing="10.0" styleClass="terminal-header">
+                <HBox spacing="6.0" alignment="CENTER_LEFT">
+                    <Region styleClass="window-dot, dot-red"/>
+                    <Region styleClass="window-dot, dot-yellow"/>
+                    <Region styleClass="window-dot, dot-green"/>
+                </HBox>
+                <Label text="CONSOLE // Telemetría de Kernel, Eventos PnP de Hardware &amp; Métricas de fsync()" styleClass="terminal-title"/>
+                <Region HBox.hgrow="ALWAYS"/>
+                <Button fx:id="btnClearLogs" text="Limpiar Consola" styleClass="btn-terminal-action"/>
+            </HBox>
+
+            <!-- Área de texto del log -->
+            <TextArea fx:id="logConsole"
+                      id="logConsole"
+                      editable="false"
+                      prefHeight="130.0"
+                      minHeight="100.0"
+                      wrapText="true"/>
+        </VBox>
     </VBox>
-</VBox>
+</ScrollPane>

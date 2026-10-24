@@ -628,3 +628,22 @@
     -fx-background-color: #0c4a6e;
     -fx-effect: dropshadow(gaussian, rgba(56, 189, 248, 0.35), 8, 0, 0, 2);
 }
+
+/* --------------------------------------------------------------------------
+   13. ScrollPane Principal Adaptativo
+   -------------------------------------------------------------------------- */
+.main-scroll-pane {
+    -fx-background-color: #090d16;
+    -fx-background: #090d16;
+    -fx-border-color: transparent;
+    -fx-border-width: 0;
+    -fx-padding: 0;
+}
+
+.main-scroll-pane > .viewport {
+    -fx-background-color: #090d16;
+}
+
+.main-scroll-pane .corner {
+    -fx-background-color: #090d16;
+}
