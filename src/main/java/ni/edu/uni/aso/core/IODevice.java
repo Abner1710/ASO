@@ -138,7 +138,33 @@ public class IODevice {
             }
         }
 
-        // 3. Periférico: DISCO / MEMORIA USB CON RUTA FÍSICA
+        // 3. Periférico: MONITOR / DISPLAY DE SALIDA (Framebuffer / VSync)
+        if ("Monitor".equalsIgnoreCase(type) || (name != null && name.toLowerCase().contains("monitor"))) {
+            if (op == OperationType.LECTURA) {
+                double ms = (System.nanoTime() - startTime) / 1_000_000.0 + 0.14;
+                this.lastLatencyMs = ms;
+                return String.format("ioctl(FBIOGET_VSCREENINFO): Resolución 1920x1080 @ 60Hz y perfil EDID leídos en %.2f ms", ms);
+            } else {
+                double ms = (System.nanoTime() - startTime) / 1_000_000.0 + 0.26;
+                this.lastLatencyMs = ms;
+                return String.format("write(/dev/fb0): Volcado de %d KB al Framebuffer de video con sincronización V-Sync en %.2f ms", payloadUnits, ms);
+            }
+        }
+
+        // 4. Periférico: IMPRESORA / SPOOLER DE SALIDA
+        if ("Impresora".equalsIgnoreCase(type) || (name != null && name.toLowerCase().contains("impresora"))) {
+            if (op == OperationType.LECTURA) {
+                double ms = (System.nanoTime() - startTime) / 1_000_000.0 + 0.18;
+                this.lastLatencyMs = ms;
+                return String.format("read(/dev/lp0): Estado de cabezal y sensores de papel consultados (ACK/Online) en %.2f ms", ms);
+            } else {
+                double ms = (System.nanoTime() - startTime) / 1_000_000.0 + 0.32;
+                this.lastLatencyMs = ms;
+                return String.format("spooler_write(): Bloque de %d KB enviado a la cola del demonio Spooler de impresión en %.2f ms", payloadUnits, ms);
+            }
+        }
+
+        // 5. Periférico: DISCO / MEMORIA USB CON RUTA FÍSICA
         if (isPhysical && physicalPath != null) {
             File targetDir = new File(physicalPath);
             if (!targetDir.exists() || !targetDir.canWrite()) {

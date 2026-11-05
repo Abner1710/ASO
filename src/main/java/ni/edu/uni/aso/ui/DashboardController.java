@@ -356,6 +356,18 @@ public class DashboardController {
                 }
                 if (btnReadRequest != null) btnReadRequest.setText("Leer Bloque de Disco (sys_read)");
                 if (btnWriteRequest != null) btnWriteRequest.setText("Escribir Bloque Físico (fsync)");
+            } else if (lower.contains("monitor") || lower.contains("pantalla") || lower.contains("hdmi")) {
+                if (lblDeviceContextDesc != null) {
+                    lblDeviceContextDesc.setText("Monitor: Volcado de buffers de video al Framebuffer (/dev/fb0) y sincronización V-Sync.");
+                }
+                if (btnReadRequest != null) btnReadRequest.setText("Leer Modos de Video (EDID)");
+                if (btnWriteRequest != null) btnWriteRequest.setText("Volcar Framebuffer (V-Sync)");
+            } else if (lower.contains("impresora") || lower.contains("printer") || lower.contains("spool")) {
+                if (lblDeviceContextDesc != null) {
+                    lblDeviceContextDesc.setText("Impresora: Salida por bloques administrada mediante cola Spooler y señales de control.");
+                }
+                if (btnReadRequest != null) btnReadRequest.setText("Consultar Estado Spooler");
+                if (btnWriteRequest != null) btnWriteRequest.setText("Enviar Trabajo Impresión (Spool)");
             } else if (lower.contains("usb") || lower.contains("pnp")) {
                 if (lblDeviceContextDesc != null) {
                     lblDeviceContextDesc.setText("USB: Transmisiones IN (descriptores de hardware) y OUT (tramas de control SETUP).");
@@ -385,14 +397,14 @@ public class DashboardController {
         String name = demoNames[demoDeviceIndex % demoNames.length];
         demoDeviceIndex++;
 
-        IODevice dev5 = subsystem.findDeviceById("dev-5");
-        if (dev5 != null && dev5.getStatus() == DeviceStatus.APAGADO) {
-            dev5.setStatus(DeviceStatus.LIBRE);
-            dev5.setExtraInfo("● En línea • " + name + " conectado");
-            newlyActivatedDeviceIds.add("dev-5");
+        IODevice dev7 = subsystem.findDeviceById("dev-7");
+        if (dev7 != null && dev7.getStatus() == DeviceStatus.APAGADO) {
+            dev7.setStatus(DeviceStatus.LIBRE);
+            dev7.setExtraInfo("● En línea • " + name + " conectado");
+            newlyActivatedDeviceIds.add("dev-7");
             showDetectionToast("¡NUEVO HARDWARE DETECTADO EN CALIENTE!", name,
                     "Periférico USB/Cooler energizado y reconocido en bus PnP", true);
-            subsystem.log("[Demo PnP] Periférico vinculado a dev-5: " + name);
+            subsystem.log("[Demo PnP] Periférico vinculado a dev-7: " + name);
         } else {
             String devId = "dev-demo-" + System.currentTimeMillis() % 1000;
             IODevice demoDev = new IODevice(devId, name, "USB", 120, true, null, true);
@@ -472,13 +484,13 @@ public class DashboardController {
             return;
         }
 
-        // 3. Vincular a Controlador Bluetooth (dev-4) si está apagado
-        IODevice bluetooth = subsystem.findDeviceById("dev-4");
+        // 3. Vincular a Controlador Bluetooth (dev-6) si está apagado
+        IODevice bluetooth = subsystem.findDeviceById("dev-6");
         if (bluetooth != null && bluetooth.getStatus() == DeviceStatus.APAGADO &&
                 (devClass.equalsIgnoreCase("Bluetooth") || lowerName.contains("bluetooth"))) {
             bluetooth.setStatus(DeviceStatus.LIBRE);
             bluetooth.setExtraInfo("● En línea • " + devName + " • Radio PnP");
-            newlyActivatedDeviceIds.add("dev-4");
+            newlyActivatedDeviceIds.add("dev-6");
             showDetectionToast("¡DRIVER BLUETOOTH EN LÍNEA!", devName,
                     "Adaptador de radio inalámbrico reconocido y activado", true);
             subsystem.log("[Plug & Play] Radio Bluetooth vinculada al subsistema: " + devName);
@@ -487,13 +499,13 @@ public class DashboardController {
             return;
         }
 
-        // 4. Vincular a Puerto USB Host / Cooler (dev-5) si está apagado
-        IODevice usbHost = subsystem.findDeviceById("dev-5");
+        // 4. Vincular a Puerto USB Host / Cooler (dev-7) si está apagado
+        IODevice usbHost = subsystem.findDeviceById("dev-7");
         if (usbHost != null && usbHost.getStatus() == DeviceStatus.APAGADO &&
                 (lowerName.contains("cooler") || lowerName.contains("usb") || lowerName.contains("hub") || device.isRemovable())) {
             usbHost.setStatus(DeviceStatus.LIBRE);
             usbHost.setExtraInfo("● En línea • " + devName + " conectado");
-            newlyActivatedDeviceIds.add("dev-5");
+            newlyActivatedDeviceIds.add("dev-7");
             showDetectionToast("¡NUEVO HARDWARE DETECTADO EN CALIENTE!", devName,
                     "Periférico USB/Cooler energizado y reconocido en bus PnP", true);
             subsystem.log("[Plug & Play] Dispositivo USB vinculado a puerto host: " + devName);
@@ -527,8 +539,8 @@ public class DashboardController {
             return;
         }
 
-        // Verificar si corresponde a dev-5 (USB Host/Cooler)
-        IODevice usbHost = subsystem.findDeviceById("dev-5");
+        // Verificar si corresponde a dev-7 (USB Host/Cooler)
+        IODevice usbHost = subsystem.findDeviceById("dev-7");
         if (usbHost != null && usbHost.getStatus() != DeviceStatus.APAGADO &&
                 (usbHost.getExtraInfo().contains(deviceName) || deviceName.toLowerCase().contains("cooler") || deviceName.toLowerCase().contains("usb"))) {
             usbHost.setStatus(DeviceStatus.APAGADO);
