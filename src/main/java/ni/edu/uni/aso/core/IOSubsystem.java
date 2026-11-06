@@ -55,31 +55,25 @@ public class IOSubsystem {
         mouse.setExtraInfo("○ Standby • Esperando controlador de hardware / click...");
         this.devices.add(mouse);
 
-        // 4. Monitor Principal (Dispositivo de Salida de Video - Framebuffer / VSync)
-        IODevice monitor = new IODevice("dev-4", "Monitor Principal (HDMI/VGA)", "Monitor", 100, true, null, false);
-        monitor.setStatus(DeviceStatus.LIBRE);
-        monitor.setExtraInfo("● En línea • Framebuffer 1920x1080 @ 60 Hz (Display Activo)");
-        this.devices.add(monitor);
-
-        // 5. Impresora del Sistema (Dispositivo de Salida por Bloques - Spooler / CUPS)
-        IODevice printer = new IODevice("dev-5", "Impresora del Sistema (Spooler)", "Impresora", 150, false, null, false);
+        // 4. Impresora del Sistema (Dispositivo de Salida por Bloques - Spooler / CUPS)
+        IODevice printer = new IODevice("dev-4", "Impresora del Sistema (Spooler)", "Impresora", 150, false, null, false);
         printer.setStatus(DeviceStatus.APAGADO);
         printer.setExtraInfo("○ Standby • Demonio Spooler en espera de trabajos de impresión...");
         this.devices.add(printer);
 
-        // 6. Controlador de Radio Bluetooth (PnP)
-        IODevice bluetooth = new IODevice("dev-6", "Controlador Bluetooth (PnP)", "Bluetooth", 80, true, null, false);
+        // 5. Controlador de Radio Bluetooth (PnP)
+        IODevice bluetooth = new IODevice("dev-5", "Controlador Bluetooth (PnP)", "Bluetooth", 80, true, null, false);
         bluetooth.setStatus(DeviceStatus.APAGADO);
         bluetooth.setExtraInfo("○ Standby • Esperando adaptador de radio Bluetooth...");
         this.devices.add(bluetooth);
 
-        // 7. Puerto USB Host / Cooler (PnP)
-        IODevice usbHost = new IODevice("dev-7", "Puerto USB Host / Cooler (PnP)", "USB", 100, true, null, false);
+        // 6. Puerto USB Host / Cooler (PnP)
+        IODevice usbHost = new IODevice("dev-6", "Puerto USB Host / Cooler (PnP)", "USB", 100, true, null, false);
         usbHost.setStatus(DeviceStatus.APAGADO);
         usbHost.setExtraInfo("○ Standby • Esperando conexión de Cooler, USB o periférico...");
         this.devices.add(usbHost);
 
-        // 8. Escaneo inicial de otros discos/USBs ya conectados al arrancar
+        // 7. Escaneo inicial de otros discos/USBs ya conectados al arrancar
         detectInitialDrives();
 
         log("[Kernel PnP] Subsistema iniciado con hardware físico de la máquina anfitriona.");

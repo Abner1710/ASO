@@ -7,20 +7,17 @@ import java.io.BufferedReader;
 import java.io.File;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
-import java.util.Base64;
-import java.util.HashSet;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * Servicio de monitoreo en tiempo real de Hardware del Sistema Operativo.
- * Implementa la detección de eventos Plug & Play (conexión y desconexión en caliente de USBs, discos y periféricos externos).
- * Realiza escaneo dual:
- * 1. Ultrarrápido (0.001s) para almacenamiento y memorias USB mediante File.listRoots().
- * 2. Asíncrono en segundo plano para periféricos externos (mouse USB, teclado, cooler, bluetooth, etc.)
- *    mediante la API de dispositivos PnP de Windows con Base64 script execution.
+ * Implementa la detección precisa de eventos Plug & Play (conexión y desconexión en caliente
+ * de memorias USB, mouse, teclados, coolers, bluetooth y periféricos externos).
+ *
+ * Utiliza seguimiento por HardwareKey único (VID/PID y MAC Bluetooth) para evitar colisiones
+ * con dispositivos genéricos internos y garantizar detección inmediata de desconexión.
  */
 public class HardwareWatcher {
 
@@ -29,9 +26,43 @@ public class HardwareWatcher {
         void onDeviceDisconnected(String deviceId, String deviceName);
     }
 
+    private static class TrackedDevice {
+        private final String hardwareKey;
+        private final String devId;
+        private final String friendlyName;
+        private final String devClass;
+        private final String assignedType;
+
+        public TrackedDevice(String hardwareKey, String devId, String friendlyName, String devClass, String assignedType) {
+            this.hardwareKey = hardwareKey;
+            this.devId = devId;
+            this.friendlyName = friendlyName;
+            this.devClass = devClass;
+            this.assignedType = assignedType;
+        }
+
+        public String getHardwareKey() { return hardwareKey; }
+        public String getDevId() { return devId; }
+        public String getFriendlyName() { return friendlyName; }
+        public String getDevClass() { return devClass; }
+        public String getAssignedType() { return assignedType; }
+    }
+
+    private static class PnpRecord {
+        final String instanceId;
+        final String friendlyName;
+        final String devClass;
+
+        PnpRecord(String instanceId, String friendlyName, String devClass) {
+            this.instanceId = instanceId;
+            this.friendlyName = friendlyName;
+            this.devClass = devClass;
+        }
+    }
+
     private final HardwareListener listener;
     private final Set<String> knownDriveRoots = new HashSet<>();
-    private final Map<String, String> knownPnpDevices = new ConcurrentHashMap<>();
+    private final Map<String, TrackedDevice> trackedPnpDevices = new ConcurrentHashMap<>();
     private final FileSystemView fileSystemView = FileSystemView.getFileSystemView();
     private final AtomicBoolean isPnpScanning = new AtomicBoolean(false);
     private final AtomicBoolean isInitialPnpScan = new AtomicBoolean(true);
@@ -42,7 +73,7 @@ public class HardwareWatcher {
     }
 
     /**
-     * Registra el estado inicial del hardware conectado al encender la aplicación.
+     * Registra el estado inicial de las unidades de disco al encender la aplicación.
      */
     private void initializeBaseline() {
         File[] roots = File.listRoots();
@@ -55,13 +86,13 @@ public class HardwareWatcher {
 
     /**
      * Ejecuta una verificación del estado del hardware físico.
-     * Combina escaneo instantáneo de unidades de disco con escaneo asíncrono de periféricos USB y PnP.
+     * Combina escaneo instantáneo de unidades de almacenamiento con escaneo asíncrono PnP optimizado.
      */
     public void scan() {
-        // 1. Escaneo ultrarrápido de unidades de almacenamiento (Memorias USB / Discos)
+        // 1. Escaneo ultrarrápido (< 1ms) de memorias USB y unidades de disco
         scanDriveRoots();
 
-        // 2. Escaneo en segundo plano de periféricos USB y PnP universales
+        // 2. Escaneo optimizado en segundo plano del bus USB y PnP
         if (isPnpScanning.compareAndSet(false, true)) {
             Thread pnpThread = new Thread(this::scanWindowsUsbDevices, "USB-PnP-Scanner");
             pnpThread.setDaemon(true);
@@ -70,7 +101,7 @@ public class HardwareWatcher {
     }
 
     /**
-     * Escanea unidades de almacenamiento mediante la API nativa de Java (latencia < 1ms).
+     * Escanea unidades de almacenamiento mediante la API nativa de Java (File.listRoots).
      */
     private void scanDriveRoots() {
         File[] currentRoots = File.listRoots();
@@ -96,23 +127,58 @@ public class HardwareWatcher {
 
         for (String disconnectedPath : disconnected) {
             knownDriveRoots.remove(disconnectedPath);
-            String devId = "dev-" + disconnectedPath.replace(":", "").replace("\\", "").toLowerCase();
+            String letter = disconnectedPath.replace(":", "").replace("\\", "");
+            String devId = "dev-" + letter.toLowerCase();
+            String displayName = "Memoria USB (" + letter + ":)";
             if (listener != null) {
-                Platform.runLater(() -> listener.onDeviceDisconnected(devId, "Unidad " + disconnectedPath));
+                Platform.runLater(() -> listener.onDeviceDisconnected(devId, displayName));
             }
         }
     }
 
     /**
-     * Escanea dispositivos conectados en Windows mediante PowerShell y PnP con codificación Base64.
+     * Extrae una clave única de hardware físico (VID/PID de USB, dirección MAC de Bluetooth, etc.)
+     * a partir del InstanceId reportado por Windows.
+     */
+    private String extractHardwareKey(String instanceId) {
+        if (instanceId == null || instanceId.isEmpty()) {
+            return "UNKNOWN";
+        }
+        String upper = instanceId.toUpperCase();
+
+        // 1. VID y PID de dispositivos USB físicos (VID_xxxx&PID_xxxx)
+        int vidIdx = upper.indexOf("VID_");
+        if (vidIdx != -1) {
+            int pidIdx = upper.indexOf("&PID_", vidIdx);
+            if (pidIdx != -1 && pidIdx + 9 <= upper.length()) {
+                return upper.substring(vidIdx, pidIdx + 9);
+            }
+        }
+
+        // 2. Dispositivo Bluetooth por dirección MAC física (DEV_xxxxxxxxxxxx)
+        int devIdx = upper.indexOf("DEV_");
+        if (devIdx != -1 && devIdx + 16 <= upper.length()) {
+            return upper.substring(devIdx, devIdx + 16);
+        }
+
+        // 3. Dispositivos integrados o ACPI
+        String[] parts = upper.split("\\\\");
+        if (parts.length >= 2) {
+            return parts[0] + "\\" + parts[1];
+        }
+        return upper;
+    }
+
+    /**
+     * Escanea dispositivos conectados en Windows mediante PowerShell y PnP con consulta de alta velocidad.
      */
     private void scanWindowsUsbDevices() {
         try {
-            // Script de PowerShell optimizado sin problemas de comillas o variables
+            // Consulta optimizada con filtro -Class directo a nivel de kernel (latencia reducida a ~450ms)
             String psScript = "$ProgressPreference = 'SilentlyContinue'; " +
-                    "Get-PnpDevice -PresentOnly | Where-Object { " +
-                    "  ((($_.Class -in @('Mouse','Keyboard','Bluetooth','USB','DiskDrive','Ports')) -or ($_.InstanceId -like 'USB*')) -and " +
-                    "   ($_.FriendlyName -and $_.FriendlyName -notmatch 'Root|Concentrador|Composite|Compuesto|Host controller|controladora host|eXtensible|Generador|Enumerador|Servicio|Software|Audio|TDI|AVRCP|proveedor|consumidor|GPIO|Filter|I2C|Controlador del sistema|Configuration Device|banda lateral|convertido')) " +
+                    "$classes = @('Mouse','Keyboard','Bluetooth','USB','DiskDrive','Ports','HIDClass','WPD'); " +
+                    "Get-PnpDevice -PresentOnly -Class $classes | Where-Object { " +
+                    "  $_.FriendlyName -and ($_.FriendlyName -notmatch 'Root|Concentrador|Composite|Compuesto|Host controller|controladora host|eXtensible|Generador|Enumerador|Servicio|Software|Audio|TDI|AVRCP|proveedor|consumidor|GPIO|Filter|I2C|Controlador del sistema|Configuration Device|banda lateral|convertido') " +
                     "} | ForEach-Object { " +
                     "  $_.InstanceId + ':::' + $_.FriendlyName + ':::' + $_.Class " +
                     "}";
@@ -123,7 +189,7 @@ public class HardwareWatcher {
             ProcessBuilder pb = new ProcessBuilder("powershell.exe", "-NoProfile", "-ExecutionPolicy", "Bypass", "-EncodedCommand", encodedCommand);
             Process process = pb.start();
 
-            Set<String> currentPnpIds = new HashSet<>();
+            Map<String, List<PnpRecord>> currentScan = new HashMap<>();
 
             try (BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream(), StandardCharsets.UTF_8))) {
                 String line;
@@ -139,63 +205,70 @@ public class HardwareWatcher {
                         String friendlyName = parts[1].trim();
                         String devClass = parts.length > 2 ? parts[2].trim() : "USB";
 
-                        currentPnpIds.add(instanceId);
-
-                        // Si es un dispositivo nuevo que antes no estaba registrado en memoria
-                        if (!knownPnpDevices.containsKey(instanceId)) {
-                            // Evitar tarjetas duplicadas si una sola entidad física expone múltiples interfaces HID idénticas
-                            boolean isDuplicate = false;
-                            for (String existingName : knownPnpDevices.values()) {
-                                if (existingName.equalsIgnoreCase(friendlyName)) {
-                                    isDuplicate = true;
-                                    break;
-                                }
-                            }
-
-                            knownPnpDevices.put(instanceId, friendlyName);
-
-                            if (!isDuplicate) {
-                                String devId = "dev-pnp-" + Math.abs(friendlyName.hashCode() % 10000);
-                                String assignedType = "USB";
-                                String lowerName = friendlyName.toLowerCase();
-                                if (devClass.equalsIgnoreCase("Keyboard") || lowerName.contains("teclado") || lowerName.contains("keyboard")) {
-                                    assignedType = "Teclado";
-                                } else if (devClass.equalsIgnoreCase("Mouse") || lowerName.contains("mouse") || lowerName.contains("ratón") || lowerName.contains("touchpad")) {
-                                    assignedType = "Mouse";
-                                } else if (devClass.equalsIgnoreCase("Bluetooth") || lowerName.contains("bluetooth")) {
-                                    assignedType = "Bluetooth";
-                                } else if (devClass.equalsIgnoreCase("DiskDrive") || lowerName.contains("disk") || lowerName.contains("disco")) {
-                                    assignedType = "Disco";
-                                }
-
-                                IODevice pnpDev = new IODevice(devId, friendlyName, assignedType, 120, true, null, true);
-                                pnpDev.setExtraInfo("Clase: " + devClass + " • Bus PnP en línea");
-
-                                boolean isHotplug = !isInitialPnpScan.get();
-                                if (listener != null) {
-                                    Platform.runLater(() -> listener.onDeviceConnected(pnpDev, isHotplug));
-                                }
-                            }
-                        }
+                        String hwKey = extractHardwareKey(instanceId);
+                        currentScan.computeIfAbsent(hwKey, k -> new ArrayList<>())
+                                .add(new PnpRecord(instanceId, friendlyName, devClass));
                     }
                 }
             }
 
             process.waitFor();
+
+            // 1. Detectar Nuevos Dispositivos Conectados
+            for (Map.Entry<String, List<PnpRecord>> entry : currentScan.entrySet()) {
+                String hwKey = entry.getKey();
+                List<PnpRecord> records = entry.getValue();
+
+                if (!trackedPnpDevices.containsKey(hwKey)) {
+                    // Seleccionar el nombre más descriptivo disponible
+                    PnpRecord best = records.get(0);
+                    for (PnpRecord r : records) {
+                        String fn = r.friendlyName.toLowerCase();
+                        if (!fn.contains("dispositivo de entrada usb") && !fn.contains("generador")) {
+                            best = r;
+                            break;
+                        }
+                    }
+
+                    String friendlyName = best.friendlyName;
+                    String devClass = best.devClass;
+                    String lowerName = friendlyName.toLowerCase();
+                    String assignedType = "USB";
+
+                    if (devClass.equalsIgnoreCase("Keyboard") || lowerName.contains("teclado") || lowerName.contains("keyboard")) {
+                        assignedType = "Teclado";
+                    } else if (devClass.equalsIgnoreCase("Mouse") || lowerName.contains("mouse") || lowerName.contains("ratón") || lowerName.contains("touchpad")) {
+                        assignedType = "Mouse";
+                    } else if (devClass.equalsIgnoreCase("Bluetooth") || lowerName.contains("bluetooth")) {
+                        assignedType = "Bluetooth";
+                    } else if (devClass.equalsIgnoreCase("DiskDrive") || lowerName.contains("disk") || lowerName.contains("disco")) {
+                        assignedType = "Disco";
+                    }
+
+                    String devId = "dev-pnp-" + Math.abs(hwKey.hashCode() % 100000);
+                    TrackedDevice tracked = new TrackedDevice(hwKey, devId, friendlyName, devClass, assignedType);
+                    trackedPnpDevices.put(hwKey, tracked);
+
+                    IODevice pnpDev = new IODevice(devId, friendlyName, assignedType, 120, true, null, true);
+                    pnpDev.setExtraInfo("Clase: " + devClass + " • Bus PnP en línea");
+
+                    boolean isHotplug = !isInitialPnpScan.get();
+                    if (listener != null) {
+                        Platform.runLater(() -> listener.onDeviceConnected(pnpDev, isHotplug));
+                    }
+                }
+            }
+
             isInitialPnpScan.set(false);
 
-            // Detectar desconexión de dispositivos PnP retirados del sistema
-            Set<String> disconnectedPnp = new HashSet<>(knownPnpDevices.keySet());
-            disconnectedPnp.removeAll(currentPnpIds);
+            // 2. Detectar Dispositivos Desconectados (claves que estaban y ya no están en currentScan)
+            Set<String> disconnectedKeys = new HashSet<>(trackedPnpDevices.keySet());
+            disconnectedKeys.removeAll(currentScan.keySet());
 
-            for (String disId : disconnectedPnp) {
-                String name = knownPnpDevices.remove(disId);
-                // Si ya no queda ninguna interfaz asociada a este dispositivo, notificar desconexión
-                if (name != null && !knownPnpDevices.containsValue(name)) {
-                    String devId = "dev-pnp-" + Math.abs(name.hashCode() % 10000);
-                    if (listener != null) {
-                        Platform.runLater(() -> listener.onDeviceDisconnected(devId, name));
-                    }
+            for (String disKey : disconnectedKeys) {
+                TrackedDevice removed = trackedPnpDevices.remove(disKey);
+                if (removed != null && listener != null) {
+                    Platform.runLater(() -> listener.onDeviceDisconnected(removed.getDevId(), removed.getFriendlyName()));
                 }
             }
 

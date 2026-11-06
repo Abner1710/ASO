@@ -95,6 +95,7 @@ public class DashboardController {
     private HardwareWatcher hardwareWatcher;
     private final Map<String, DeviceStatus> lastKnownDeviceStatus = new HashMap<>();
     private final java.util.Set<String> newlyActivatedDeviceIds = new java.util.HashSet<>();
+    private final java.util.concurrent.ConcurrentHashMap<String, String> deviceSlotBindings = new java.util.concurrent.ConcurrentHashMap<>();
 
     @FXML
     public void initialize() {
@@ -356,12 +357,6 @@ public class DashboardController {
                 }
                 if (btnReadRequest != null) btnReadRequest.setText("Leer Bloque de Disco (sys_read)");
                 if (btnWriteRequest != null) btnWriteRequest.setText("Escribir Bloque Físico (fsync)");
-            } else if (lower.contains("monitor") || lower.contains("pantalla") || lower.contains("hdmi")) {
-                if (lblDeviceContextDesc != null) {
-                    lblDeviceContextDesc.setText("Monitor: Volcado de buffers de video al Framebuffer (/dev/fb0) y sincronización V-Sync.");
-                }
-                if (btnReadRequest != null) btnReadRequest.setText("Leer Modos de Video (EDID)");
-                if (btnWriteRequest != null) btnWriteRequest.setText("Volcar Framebuffer (V-Sync)");
             } else if (lower.contains("impresora") || lower.contains("printer") || lower.contains("spool")) {
                 if (lblDeviceContextDesc != null) {
                     lblDeviceContextDesc.setText("Impresora: Salida por bloques administrada mediante cola Spooler y señales de control.");
@@ -397,14 +392,14 @@ public class DashboardController {
         String name = demoNames[demoDeviceIndex % demoNames.length];
         demoDeviceIndex++;
 
-        IODevice dev7 = subsystem.findDeviceById("dev-7");
-        if (dev7 != null && dev7.getStatus() == DeviceStatus.APAGADO) {
-            dev7.setStatus(DeviceStatus.LIBRE);
-            dev7.setExtraInfo("● En línea • " + name + " conectado");
-            newlyActivatedDeviceIds.add("dev-7");
+        IODevice dev6 = subsystem.findDeviceById("dev-6");
+        if (dev6 != null && dev6.getStatus() == DeviceStatus.APAGADO) {
+            dev6.setStatus(DeviceStatus.LIBRE);
+            dev6.setExtraInfo("● En línea • " + name + " conectado");
+            newlyActivatedDeviceIds.add("dev-6");
             showDetectionToast("¡NUEVO HARDWARE DETECTADO EN CALIENTE!", name,
                     "Periférico USB/Cooler energizado y reconocido en bus PnP", true);
-            subsystem.log("[Demo PnP] Periférico vinculado a dev-7: " + name);
+            subsystem.log("[Demo PnP] Periférico vinculado a dev-6: " + name);
         } else {
             String devId = "dev-demo-" + System.currentTimeMillis() % 1000;
             IODevice demoDev = new IODevice(devId, name, "USB", 120, true, null, true);
@@ -460,6 +455,7 @@ public class DashboardController {
                 (devClass.equalsIgnoreCase("Teclado") || lowerName.contains("teclado") || lowerName.contains("keyboard"))) {
             kbd.setStatus(DeviceStatus.LIBRE);
             kbd.setExtraInfo("● En línea • " + devName + " • IRQ 1");
+            deviceSlotBindings.put(device.getId(), "dev-2");
             newlyActivatedDeviceIds.add("dev-2");
             showDetectionToast("¡CONTROLADOR DE TECLADO EN LÍNEA!", devName,
                     "Dispositivo físico detectado y vinculado a IRQ 1", true);
@@ -475,6 +471,7 @@ public class DashboardController {
                 (devClass.equalsIgnoreCase("Mouse") || lowerName.contains("mouse") || lowerName.contains("ratón") || lowerName.contains("touchpad"))) {
             mouse.setStatus(DeviceStatus.LIBRE);
             mouse.setExtraInfo("● En línea • " + devName + " • IRQ 12");
+            deviceSlotBindings.put(device.getId(), "dev-3");
             newlyActivatedDeviceIds.add("dev-3");
             showDetectionToast("¡CONTROLADOR DE PUNTERO EN LÍNEA!", devName,
                     "Dispositivo físico detectado y vinculado a IRQ 12", true);
@@ -484,13 +481,14 @@ public class DashboardController {
             return;
         }
 
-        // 3. Vincular a Controlador Bluetooth (dev-6) si está apagado
-        IODevice bluetooth = subsystem.findDeviceById("dev-6");
+        // 3. Vincular a Controlador Bluetooth (dev-5) si está apagado
+        IODevice bluetooth = subsystem.findDeviceById("dev-5");
         if (bluetooth != null && bluetooth.getStatus() == DeviceStatus.APAGADO &&
                 (devClass.equalsIgnoreCase("Bluetooth") || lowerName.contains("bluetooth"))) {
             bluetooth.setStatus(DeviceStatus.LIBRE);
             bluetooth.setExtraInfo("● En línea • " + devName + " • Radio PnP");
-            newlyActivatedDeviceIds.add("dev-6");
+            deviceSlotBindings.put(device.getId(), "dev-5");
+            newlyActivatedDeviceIds.add("dev-5");
             showDetectionToast("¡DRIVER BLUETOOTH EN LÍNEA!", devName,
                     "Adaptador de radio inalámbrico reconocido y activado", true);
             subsystem.log("[Plug & Play] Radio Bluetooth vinculada al subsistema: " + devName);
@@ -499,13 +497,14 @@ public class DashboardController {
             return;
         }
 
-        // 4. Vincular a Puerto USB Host / Cooler (dev-7) si está apagado
-        IODevice usbHost = subsystem.findDeviceById("dev-7");
+        // 4. Vincular a Puerto USB Host / Cooler (dev-6) si está apagado
+        IODevice usbHost = subsystem.findDeviceById("dev-6");
         if (usbHost != null && usbHost.getStatus() == DeviceStatus.APAGADO &&
                 (lowerName.contains("cooler") || lowerName.contains("usb") || lowerName.contains("hub") || device.isRemovable())) {
             usbHost.setStatus(DeviceStatus.LIBRE);
             usbHost.setExtraInfo("● En línea • " + devName + " conectado");
-            newlyActivatedDeviceIds.add("dev-7");
+            deviceSlotBindings.put(device.getId(), "dev-6");
+            newlyActivatedDeviceIds.add("dev-6");
             showDetectionToast("¡NUEVO HARDWARE DETECTADO EN CALIENTE!", devName,
                     "Periférico USB/Cooler energizado y reconocido en bus PnP", true);
             subsystem.log("[Plug & Play] Dispositivo USB vinculado a puerto host: " + devName);
@@ -515,6 +514,7 @@ public class DashboardController {
         }
 
         // 5. De lo contrario, registrar como nuevo dispositivo dinámico independiente
+        deviceSlotBindings.put(device.getId(), device.getId());
         device.setStatus(DeviceStatus.LIBRE);
         subsystem.addDynamicDevice(device);
         newlyActivatedDeviceIds.add(device.getId());
@@ -528,33 +528,54 @@ public class DashboardController {
      * Procesa la desconexión de hardware en caliente retirándolo de la lista o regresando a standby.
      */
     private void handleDeviceDisconnection(String deviceId, String deviceName) {
-        // Verificar si es un dispositivo dinámico
-        IODevice dev = subsystem.findDeviceById(deviceId);
-        if (dev != null) {
-            subsystem.removeDynamicDevice(deviceId, deviceName);
-            showDetectionToast("HARDWARE DESCONECTADO", deviceName,
-                    "Periférico retirado en caliente • Liberando búferes y descriptores de E/S", false);
-            updateTargetDeviceCombo();
-            updateUI();
-            return;
+        String slotId = deviceSlotBindings.remove(deviceId);
+        if (slotId == null) {
+            slotId = deviceId;
         }
 
-        // Verificar si corresponde a dev-7 (USB Host/Cooler)
-        IODevice usbHost = subsystem.findDeviceById("dev-7");
-        if (usbHost != null && usbHost.getStatus() != DeviceStatus.APAGADO &&
-                (usbHost.getExtraInfo().contains(deviceName) || deviceName.toLowerCase().contains("cooler") || deviceName.toLowerCase().contains("usb"))) {
-            usbHost.setStatus(DeviceStatus.APAGADO);
-            usbHost.setExtraInfo("○ Standby • Esperando conexión de Cooler, USB o periférico...");
+        if ("dev-2".equals(slotId)) {
+            IODevice kbd = subsystem.findDeviceById("dev-2");
+            if (kbd != null) {
+                kbd.setStatus(DeviceStatus.APAGADO);
+                kbd.setExtraInfo("○ Standby • Esperando controlador de hardware / tecla...");
+                subsystem.log("[Plug & Play] Teclado desconectado: " + deviceName + ". Controlador en Standby.");
+            }
+            showDetectionToast("HARDWARE DESCONECTADO", deviceName,
+                    "Teclado físico retirado • Controlador en standby", false);
+        } else if ("dev-3".equals(slotId)) {
+            IODevice mouse = subsystem.findDeviceById("dev-3");
+            if (mouse != null) {
+                mouse.setStatus(DeviceStatus.APAGADO);
+                mouse.setExtraInfo("○ Standby • Esperando controlador de hardware / click...");
+                subsystem.log("[Plug & Play] Mouse desconectado: " + deviceName + ". Controlador en Standby.");
+            }
+            showDetectionToast("HARDWARE DESCONECTADO", deviceName,
+                    "Mouse / Puntero retirado en caliente • Controlador en standby", false);
+        } else if ("dev-5".equals(slotId)) {
+            IODevice bluetooth = subsystem.findDeviceById("dev-5");
+            if (bluetooth != null) {
+                bluetooth.setStatus(DeviceStatus.APAGADO);
+                bluetooth.setExtraInfo("○ Standby • Esperando adaptador de radio Bluetooth...");
+                subsystem.log("[Plug & Play] Bluetooth desconectado: " + deviceName + ". Controlador en Standby.");
+            }
+            showDetectionToast("HARDWARE DESCONECTADO", deviceName,
+                    "Adaptador Bluetooth desconectado • Controlador en standby", false);
+        } else if ("dev-6".equals(slotId)) {
+            IODevice usbHost = subsystem.findDeviceById("dev-6");
+            if (usbHost != null) {
+                usbHost.setStatus(DeviceStatus.APAGADO);
+                usbHost.setExtraInfo("○ Standby • Esperando conexión de Cooler, USB o periférico...");
+                subsystem.log("[Plug & Play] Periférico USB retirado del puerto host: " + deviceName + ".");
+            }
             showDetectionToast("HARDWARE DESCONECTADO", deviceName,
                     "Periférico retirado en caliente • Puerto USB en standby", false);
-            updateTargetDeviceCombo();
-            updateUI();
-            return;
+        } else {
+            // Dispositivo dinámico o memoria USB extraíble
+            subsystem.removeDynamicDevice(slotId, deviceName);
+            showDetectionToast("HARDWARE DESCONECTADO", deviceName,
+                    "Periférico retirado en caliente • Recursos de E/S liberados", false);
         }
 
-        // Aviso genérico de desconexión
-        showDetectionToast("HARDWARE DESCONECTADO", deviceName,
-                "Periférico retirado en caliente • Recursos liberados por el Kernel", false);
         updateTargetDeviceCombo();
         updateUI();
     }
